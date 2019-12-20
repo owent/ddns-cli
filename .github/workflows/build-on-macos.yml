@@ -1,0 +1,28 @@
+name: "Build On macOS"
+
+on: [push]
+
+jobs:
+  build: # job id, can be any string
+    # Job name is Build And Publish
+    name: Build
+    # This job runs on Linux
+    strategy:
+      matrix:
+        os: [macOS-latest]
+        rust: [stable]
+        target: [x86_64-apple-darwin]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Rust
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: ${{ matrix.rust }}
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Build
+        run: |
+          env PKG_CONFIG_ALL_STATIC=1 cargo build --release --verbose --target ${{ matrix.target }}
+      - name: Run tests
+        run: |
+          cargo test --release --verbose --target ${{ matrix.target }}
