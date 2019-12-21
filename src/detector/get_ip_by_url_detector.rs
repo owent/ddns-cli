@@ -1,11 +1,10 @@
 pub use core::future::Future;
 use futures::future::{self, BoxFuture, FutureExt, TryFutureExt};
-use futures::{Stream, TryFuture};
 
 use std::net::IpAddr;
 use std::str::FromStr;
 
-use awc::{Client, ClientRequest, MessageBody};
+use hyper;
 
 extern crate clap;
 use clap::{App, Arg, ArgMatches};
@@ -13,26 +12,32 @@ use clap::{App, Arg, ArgMatches};
 use super::super::option;
 use super::{Detector, DetectorResult, Record};
 
+type SharedProgramOptions = super::SharedProgramOptions;
+type HttpMethod = super::HttpMethod;
+
 pub struct GetIpByUrlDetector {
     url: String,
     ips: Vec<Record>,
 }
 
 impl GetIpByUrlDetector {
-    pub fn default() -> Self {
-        GetIpByUrlDetector {
-            url: String::default(),
-            ips: vec![],
-        }
-    }
-
-    pub async fn pull_request_content<'a>(
+    // #[actix_rt::main]
+    pub async fn pull_request_content<'a, 'b>(
         &'a mut self,
-        request: option::HttpClient,
-        logger: slog::Logger,
-    ) -> Result<(String, slog::Logger), ()> {
-        let response = request
-            .send()
+        options: SharedProgramOptions,
+    ) -> DetectorResult<'a> {
+        let logger = options.create_logger("GetIpByUrlDetector");
+
+        let (cli, req) = options.http(HttpMethod::GET, &self.url);
+        let req_fut = req.body(hyper::Body::from("")).map_err(|e| {
+            error!(logger, "Build request failed {}", e);
+            debug!(logger, "{:?}", e);
+            ()
+        })?;
+
+        let response = cli
+            .build_http()
+            .request(req_fut)
             .map_err(|e| {
                 error!(logger, "Send HTTP request failed {}", e);
                 debug!(logger, "{:?}", e);
@@ -40,44 +45,34 @@ impl GetIpByUrlDetector {
             })
             .await?;
 
-        let body = response
-            .body()
+        let body_bytes = hyper::body::to_bytes(response)
             .map_err(|e| {
-                error!(logger, "Fetch HTTP body failed {}", e);
+                error!(logger, "Get HTTP response failed {}", e);
                 debug!(logger, "{:?}", e);
                 ()
             })
             .await?;
 
-        let ip_addr_str = String::from_utf8((&body).to_vec()).map_err(|e| {
-            error!(logger, "Convert HTTP content to UTF-8 string failed {}", e);
+        let ip_addr_str = String::from_utf8((&body_bytes).to_vec()).map_err(|e| {
+            error!(logger, "Parse HTTP body failed {}", e);
             debug!(logger, "{:?}", e);
             ()
         })?;
 
-        Ok((ip_addr_str, logger))
-    }
-
-    pub async fn make_request<'a>(
-        &'a mut self,
-        request: option::HttpClient,
-        logger: slog::Logger,
-    ) -> DetectorResult<'a> {
-        let response = self.pull_request_content(request, logger).await;
-        match response {
-            Ok((ip_addr_str, logger)) => {
-                if let Ok(addr) = IpAddr::from_str(&ip_addr_str) {
-                    let final_addr = match addr {
-                        IpAddr::V4(ipv4) => Record::A(ipv4),
-                        IpAddr::V6(ipv6) => Record::AAAA(ipv6),
-                    };
-                    self.ips.push(final_addr);
-                    Some(&self.ips)
-                } else {
-                    None
-                }
+        match IpAddr::from_str(&ip_addr_str) {
+            Ok(addr) => {
+                let final_addr = match addr {
+                    IpAddr::V4(ipv4) => Record::A(ipv4),
+                    IpAddr::V6(ipv6) => Record::AAAA(ipv6),
+                };
+                self.ips.push(final_addr);
+                Ok(&self.ips)
             }
-            Err(_) => None,
+            Err(e) => {
+                error!(logger, "Parse ip address from HTTP body failed {}", e);
+                debug!(logger, "{:?}", e);
+                Err(())
+            }
         }
     }
 }
@@ -93,20 +88,30 @@ impl Detector for GetIpByUrlDetector {
         )
     }
 
-    fn parse_options(&mut self, matches: &ArgMatches, options: &mut option::ProgramOptions) {
-        self.url = option::unwraper_string_or(&matches, "get-ip-by-url", String::default());
+    fn parse_options(&mut self, matches: &ArgMatches, _: &mut SharedProgramOptions) {
+        self.url = option::unwraper_option_or(&matches, "get-ip-by-url", String::default());
     }
 
-    fn run<'a>(
+    fn run<'a, 'b>(
         &'a mut self,
-        options: &mut option::ProgramOptions,
-    ) -> BoxFuture<DetectorResult<'a>> {
+        options: &mut SharedProgramOptions,
+    ) -> BoxFuture<'b, DetectorResult<'a>>
+    where
+        'a: 'b,
+    {
         if self.url.is_empty() {
-            future::ready(None).boxed()
+            future::ready(Err(())).boxed()
         } else {
-            let logger = option::create_logger(&options, "GetIpByUrlDetector");
-            let client_request = option::create_http_client(&self.url, &options);
-            self.make_request(client_request, logger).boxed()
+            self.pull_request_content(options.clone()).boxed()
+        }
+    }
+}
+
+impl Default for GetIpByUrlDetector {
+    fn default() -> Self {
+        GetIpByUrlDetector {
+            url: String::default(),
+            ips: vec![],
         }
     }
 }

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::process;
 use std::result;
 use std::str::FromStr;
@@ -11,7 +12,8 @@ use clap::{App, Arg, ArgMatches};
 use slog;
 use slog::Drain;
 
-use awc::{Client, ClientRequest};
+use http;
+use hyper;
 
 #[derive(Debug, Clone)]
 pub struct ProgramOptions {
@@ -19,6 +21,15 @@ pub struct ProgramOptions {
     pub insecure: bool,
     pub logger: slog::Logger,
     pub http_user_agent: String,
+}
+
+pub type SharedProgramOptions = Arc<ProgramOptions>;
+#[allow(dead_code)]
+pub enum HttpMethod {
+    GET,
+    POST,
+    PUT,
+    DELETE,
 }
 
 pub fn app<'a, 'b>() -> App<'a, 'b> {
@@ -60,7 +71,34 @@ pub fn app<'a, 'b>() -> App<'a, 'b> {
         )
 }
 
-pub fn parse_options<'a, 'b>(app: App<'a, 'b>) -> (ArgMatches<'a>, ProgramOptions)
+fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
+    let debug_log_on = Arc::new(atomic::AtomicBool::new(matches.is_present("verbose")));
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::FullFormat::new(decorator).build().fuse();
+    let drain = RuntimeLevelFilter {
+        drain: drain,
+        on: debug_log_on.clone(),
+    }
+    .fuse();
+    let drain = slog_async::Async::new(drain)
+        .chan_size(4096)
+        .overflow_strategy(slog_async::OverflowStrategy::Block)
+        .build()
+        .fuse();
+
+    ProgramOptions {
+        timeout: Duration::from_millis(unwraper_from_str_or(matches, "timeout", 60000)),
+        insecure: matches.is_present("insecure"),
+        logger: slog::Logger::root(drain, o!("tag" => format!("[{}]", "main"))),
+        http_user_agent: unwraper_option_or(
+            &matches,
+            "http-user-agent",
+            format!("{}/{}", crate_name!(), crate_version!()),
+        ),
+    }
+}
+
+pub fn parse_options<'a, 'b>(app: App<'a, 'b>) -> (ArgMatches<'a>, SharedProgramOptions)
 where
     'a: 'b,
 {
@@ -71,11 +109,7 @@ where
     }
 
     let options = generate_options(&matches);
-    (matches, options)
-}
-
-pub fn create_logger(options: &ProgramOptions, tag: &str) -> slog::Logger {
-    options.logger.new(o!("tag" => format!("[{}]", tag)))
+    (matches, Arc::new(options))
 }
 
 pub fn unwraper_from_str_or<'a, T, S: AsRef<str>>(matches: &ArgMatches<'a>, name: S, def: T) -> T
@@ -93,37 +127,46 @@ where
     def
 }
 
-pub fn unwraper_string_or<'a, S: AsRef<str>>(
-    matches: &ArgMatches<'a>,
-    name: S,
-    def: String,
-) -> String {
+pub trait OptionValueWrapper<T> {
+    fn pick(self, input: &str) -> Self;
+}
+
+/**
+impl OptionValueWrapper<bool> for bool {
+    fn pick(self, input: &str) -> Self {
+        let s = input.to_lowercase();
+        if s.is_empty() {
+            return false;
+        }
+        s != "0" && s != "false" && s != "disable" && s != "disabled" && s != "no"
+    }
+}
+**/
+
+impl<T> OptionValueWrapper<T> for T
+where
+    T: FromStr,
+{
+    fn pick(self, input: &str) -> Self {
+        if let Ok(v) = input.parse::<T>() {
+            v
+        } else {
+            self
+        }
+    }
+}
+
+pub fn unwraper_option_or<'a, T, S: AsRef<str>>(matches: &ArgMatches<'a>, name: S, def: T) -> T
+where
+    T: OptionValueWrapper<T>,
+{
     if let Some(mut x) = matches.values_of(name) {
         if let Some(val) = x.next() {
-            return String::from(val);
+            return def.pick(val);
         }
     }
 
     def
-}
-
-pub fn unwraper_bool_or<'a, S: AsRef<str>>(matches: &ArgMatches<'a>, name: S, def: bool) -> bool {
-    let s = unwraper_string_or(matches, name, String::default()).to_lowercase();
-    if s.is_empty() {
-        return def;
-    }
-
-    return s != "0" && s != "false" && s != "disable" && s != "disabled" && s != "no";
-}
-
-pub type HttpClient = Arc<Box<ClientRequest>>;
-pub fn create_http_client(url: &str, options: &ProgramOptions) -> HttpClient {
-    Arc::new(Box::new(
-        Client::default()
-            .get(url)
-            .header("User-Agent", options.http_user_agent)
-            .timeout(options.timeout),
-    ))
 }
 
 /// Custom Drain logic
@@ -155,29 +198,32 @@ where
     }
 }
 
-fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
-    let debug_log_on = Arc::new(atomic::AtomicBool::new(matches.is_present("verbose")));
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::FullFormat::new(decorator).build().fuse();
-    let drain = RuntimeLevelFilter {
-        drain: drain,
-        on: debug_log_on.clone(),
+impl ProgramOptions {
+    pub fn create_logger(&self, tag: &str) -> slog::Logger {
+        self.logger.new(o!("tag" => format!("[{}]", tag)))
     }
-    .fuse();
-    let drain = slog_async::Async::new(drain)
-        .chan_size(4096)
-        .overflow_strategy(slog_async::OverflowStrategy::Block)
-        .build()
-        .fuse();
 
-    ProgramOptions {
-        timeout: Duration::from_millis(unwraper_from_str_or(matches, "timeout", 60000)),
-        insecure: matches.is_present("insecure"),
-        logger: slog::Logger::root(drain, o!("tag" => format!("[{}]", "main"))),
-        http_user_agent: unwraper_string_or(
-            &matches,
-            "http-user-agent",
-            format!("{}/{}", crate_name!(), crate_version!()),
-        ),
+    pub fn http<U>(
+        &self,
+        method: HttpMethod,
+        url: U,
+    ) -> (hyper::client::Builder, http::request::Builder)
+    where
+        http::Uri: TryFrom<U>,
+        <http::Uri as TryFrom<U>>::Error: Into<http::Error>,
+    {
+        let mut cli = hyper::client::Builder::default();
+        let _ = cli.keep_alive_timeout(self.timeout);
+        let builder_l1 = match method {
+            HttpMethod::GET => http::request::Request::builder().method("GET"),
+            HttpMethod::POST => http::request::Request::builder().method("POST"),
+            HttpMethod::PUT => http::request::Request::builder().method("PUT"),
+            HttpMethod::DELETE => http::request::Request::builder().method("DELETE"),
+        };
+        let builder = builder_l1
+            .uri(url)
+            .header("User-Agent", &self.http_user_agent);
+
+        (cli, builder)
     }
 }

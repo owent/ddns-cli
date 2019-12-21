@@ -7,15 +7,16 @@ use std::str::FromStr;
 extern crate clap;
 use clap::{App, Arg, ArgMatches};
 
-use super::super::option::ProgramOptions;
 use super::{Detector, DetectorResult, Record};
+
+type SharedProgramOptions = super::SharedProgramOptions;
 
 pub struct SetIpDetector {
     ips: Vec<Record>,
 }
 
-impl SetIpDetector {
-    pub fn default() -> Self {
+impl Default for SetIpDetector {
+    fn default() -> Self {
         SetIpDetector { ips: vec![] }
     }
 }
@@ -31,7 +32,7 @@ impl Detector for SetIpDetector {
         )
     }
 
-    fn parse_options(&mut self, matches: &ArgMatches, options: &mut ProgramOptions) {
+    fn parse_options(&mut self, matches: &ArgMatches, _: &mut SharedProgramOptions) {
         if let Some(x) = matches.values_of("ip") {
             for val in x {
                 if let Ok(addr) = IpAddr::from_str(&val) {
@@ -45,11 +46,14 @@ impl Detector for SetIpDetector {
         }
     }
 
-    fn run<'a>(&'a mut self, _: &mut ProgramOptions) -> BoxFuture<DetectorResult<'a>> {
+    fn run<'a, 'b>(&'a mut self, _: &mut SharedProgramOptions) -> BoxFuture<'b, DetectorResult<'a>>
+    where
+        'a: 'b,
+    {
         if self.ips.is_empty() {
-            future::ready(None).boxed()
+            future::ready(Err(())).boxed()
         } else {
-            future::ready(Some(&self.ips)).boxed()
+            future::ready(Ok(&self.ips)).boxed()
         }
     }
 }
