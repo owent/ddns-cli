@@ -19,11 +19,12 @@ pub trait Driver {
     fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b>;
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions);
 
-    fn run<'a, 'b>(
-        &mut self,
+    fn run<'a, 'b, 'c>(
+        &'a mut self,
         options: &SharedProgramOptions,
-        recs: &Vec<Record>,
+        recs: &'c Vec<Record>,
     ) -> BoxFuture<'b, DriverResult>
     where
-        'a: 'b;
+        'a: 'b,
+        'c: 'a;
 }

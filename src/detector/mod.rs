@@ -22,7 +22,7 @@ pub enum Record {
     #[allow(dead_code)]
     MX(String),
     #[allow(dead_code)]
-    Txt(String),
+    TXT(String),
 }
 
 pub type DetectorResult<'a> = Result<&'a Vec<Record>, ()>;

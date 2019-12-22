@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::process;
 use std::result;
 use std::str::FromStr;
@@ -12,8 +11,7 @@ use clap::{App, Arg, ArgMatches};
 use slog;
 use slog::Drain;
 
-use http;
-use hyper;
+use reqwest::{self, r#async::ClientBuilder};
 
 #[derive(Debug, Clone)]
 pub struct ProgramOptions {
@@ -21,6 +19,10 @@ pub struct ProgramOptions {
     pub insecure: bool,
     pub logger: slog::Logger,
     pub http_user_agent: String,
+    pub no_proxy: bool,
+    pub proxy_address: String,
+    pub proxy_username: String,
+    pub proxy_password: String,
 }
 
 pub type SharedProgramOptions = Arc<ProgramOptions>;
@@ -29,7 +31,9 @@ pub enum HttpMethod {
     GET,
     POST,
     PUT,
+    PATCH,
     DELETE,
+    HEAD,
 }
 
 pub fn app<'a, 'b>() -> App<'a, 'b> {
@@ -69,6 +73,29 @@ pub fn app<'a, 'b>() -> App<'a, 'b> {
                 .long("http-user-agent")
                 .help("Set user agent for http request"),
         )
+        .arg(
+            Arg::with_name("no-proxy")
+                .long("no-proxy")
+                .help("Do not use any proxy"),
+        )
+        .arg(
+            Arg::with_name("proxy")
+                .long("proxy")
+                .takes_value(true)
+                .help("Set http proxy(http|https|socks5|socks5h://HOST:PORT)"),
+        )
+        .arg(
+            Arg::with_name("proxy-username")
+                .long("proxy-username")
+                .takes_value(true)
+                .help("Set proxy username fo auth"),
+        )
+        .arg(
+            Arg::with_name("proxy-password")
+                .long("proxy-password")
+                .takes_value(true)
+                .help("Set proxy password fo auth"),
+        )
 }
 
 fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
@@ -95,6 +122,10 @@ fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
             "http-user-agent",
             format!("{}/{}", crate_name!(), crate_version!()),
         ),
+        no_proxy: matches.is_present("no-proxy"),
+        proxy_address: unwraper_option_or(&matches, "proxy", String::default()),
+        proxy_username: unwraper_option_or(&matches, "proxy-username", String::default()),
+        proxy_password: unwraper_option_or(&matches, "proxy-password", String::default()),
     }
 }
 
@@ -203,27 +234,46 @@ impl ProgramOptions {
         self.logger.new(o!("tag" => format!("[{}]", tag)))
     }
 
-    pub fn http<U>(
-        &self,
-        method: HttpMethod,
-        url: U,
-    ) -> (hyper::client::Builder, http::request::Builder)
-    where
-        http::Uri: TryFrom<U>,
-        <http::Uri as TryFrom<U>>::Error: Into<http::Error>,
-    {
-        let mut cli = hyper::client::Builder::default();
-        let _ = cli.keep_alive_timeout(self.timeout);
-        let builder_l1 = match method {
-            HttpMethod::GET => http::request::Request::builder().method("GET"),
-            HttpMethod::POST => http::request::Request::builder().method("POST"),
-            HttpMethod::PUT => http::request::Request::builder().method("PUT"),
-            HttpMethod::DELETE => http::request::Request::builder().method("DELETE"),
-        };
-        let builder = builder_l1
-            .uri(url)
-            .header("User-Agent", &self.http_user_agent);
+    pub fn create_proxy(&self) -> Option<reqwest::Proxy> {
+        if self.no_proxy || self.proxy_address.is_empty() {
+            return None;
+        }
 
-        (cli, builder)
+        if let Ok(p) = reqwest::Proxy::all(&self.proxy_address) {
+            if !self.proxy_username.is_empty() || !self.proxy_password.is_empty() {
+                Some(p.basic_auth(&self.proxy_username, &self.proxy_password))
+            } else {
+                Some(p)
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn http<U>(&self, method: HttpMethod, url: U) -> reqwest::r#async::RequestBuilder
+    where
+        U: reqwest::IntoUrl,
+    {
+        let mut builder = ClientBuilder::new()
+            .danger_accept_invalid_certs(!self.insecure)
+            .connect_timeout(self.timeout)
+            .gzip(true)
+            .redirect(reqwest::RedirectPolicy::limited(32))
+            .timeout(self.timeout)
+            //.use_rustls_tls()
+            ;
+        if let Some(p) = self.create_proxy() {
+            builder = builder.proxy(p);
+        }
+
+        let builder = match method {
+            HttpMethod::GET => builder.build().expect("Client::new()").get(url),
+            HttpMethod::POST => builder.build().expect("Client::new()").post(url),
+            HttpMethod::PUT => builder.build().expect("Client::new()").put(url),
+            HttpMethod::PATCH => builder.build().expect("Client::new()").patch(url),
+            HttpMethod::DELETE => builder.build().expect("Client::new()").delete(url),
+            HttpMethod::HEAD => builder.build().expect("Client::new()").head(url),
+        };
+        builder.header("User-Agent", &self.http_user_agent)
     }
 }

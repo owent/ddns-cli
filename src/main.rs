@@ -12,8 +12,8 @@ extern crate time;
 
 extern crate futures;
 extern crate futures_core;
+
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 
 #[macro_use]
@@ -23,8 +23,12 @@ extern crate clap;
 extern crate slog;
 
 extern crate http;
-extern crate hyper;
-extern crate hyper_tls;
+extern crate tokio;
+// extern crate hyper;
+// extern crate hyper_tls;
+extern crate reqwest;
+
+// use tokio::prelude::*;
 
 mod detector;
 mod driver;
@@ -41,7 +45,8 @@ fn register_drivers() -> Vec<Box<dyn driver::Driver>> {
     vec![Box::new(driver::Cloudflare::default())]
 }
 
-async fn run() {
+#[tokio::main]
+async fn main() {
     let mut detectors = register_detectors();
     let mut drivers = register_drivers();
     let mut app = option::app();
@@ -78,8 +83,4 @@ async fn run() {
     for ref mut driver in &mut drivers {
         let _ = driver.run(&options, &records).await;
     }
-}
-
-fn main() {
-    let _ = futures::executor::block_on(run());
 }

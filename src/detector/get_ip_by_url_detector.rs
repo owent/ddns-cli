@@ -4,8 +4,6 @@ use futures::future::{self, BoxFuture, FutureExt, TryFutureExt};
 use std::net::IpAddr;
 use std::str::FromStr;
 
-use hyper;
-
 extern crate clap;
 use clap::{App, Arg, ArgMatches};
 
@@ -22,22 +20,16 @@ pub struct GetIpByUrlDetector {
 
 impl GetIpByUrlDetector {
     // #[actix_rt::main]
-    pub async fn pull_request_content<'a, 'b>(
+    pub async fn pull_request_content<'a>(
         &'a mut self,
         options: SharedProgramOptions,
     ) -> DetectorResult<'a> {
         let logger = options.create_logger("GetIpByUrlDetector");
 
-        let (cli, req) = options.http(HttpMethod::GET, &self.url);
-        let req_fut = req.body(hyper::Body::from("")).map_err(|e| {
-            error!(logger, "Build request failed {}", e);
-            debug!(logger, "{:?}", e);
-            ()
-        })?;
+        let cli = options.http(HttpMethod::GET, &self.url);
 
         let response = cli
-            .build_http()
-            .request(req_fut)
+            .send()
             .map_err(|e| {
                 error!(logger, "Send HTTP request failed {}", e);
                 debug!(logger, "{:?}", e);
@@ -45,7 +37,8 @@ impl GetIpByUrlDetector {
             })
             .await?;
 
-        let body_bytes = hyper::body::to_bytes(response)
+        let body_text = response
+            .text()
             .map_err(|e| {
                 error!(logger, "Get HTTP response failed {}", e);
                 debug!(logger, "{:?}", e);
@@ -53,13 +46,9 @@ impl GetIpByUrlDetector {
             })
             .await?;
 
-        let ip_addr_str = String::from_utf8((&body_bytes).to_vec()).map_err(|e| {
-            error!(logger, "Parse HTTP body failed {}", e);
-            debug!(logger, "{:?}", e);
-            ()
-        })?;
+        debug!(logger, "Detect my address: {}", body_text);
 
-        match IpAddr::from_str(&ip_addr_str) {
+        match IpAddr::from_str(&body_text) {
             Ok(addr) => {
                 let final_addr = match addr {
                     IpAddr::V4(ipv4) => Record::A(ipv4),
@@ -84,7 +73,7 @@ impl Detector for GetIpByUrlDetector {
                 .long("get-ip-by-url")
                 .value_name("URL TO VISIT")
                 .takes_value(true)
-                .help("Get ip by visit specify url"),
+                .help("Get ip by visit specify url(https://myip.biturl.top/ for example)"),
         )
     }
 
