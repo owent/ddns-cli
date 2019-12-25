@@ -28,6 +28,8 @@ impl GetIpByUrlDetector {
 
         let cli = options.http(HttpMethod::GET, &self.url);
 
+        debug!(logger, "Sending request to {} to get my address", self.url);
+
         let response = cli
             .send()
             .map_err(|e| {

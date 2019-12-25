@@ -1,3 +1,4 @@
+use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use futures::future::BoxFuture;
@@ -23,6 +24,18 @@ pub enum Record {
     MX(String),
     #[allow(dead_code)]
     TXT(String),
+}
+
+impl fmt::Display for Record {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Record::A(ref v) => f.write_fmt(format_args!("A: {}", v)),
+            Record::AAAA(ref v) => f.write_fmt(format_args!("AAAA: {}", v)),
+            Record::CNAME(ref v) => f.write_fmt(format_args!("CNAME: {}", v)),
+            Record::MX(ref v) => f.write_fmt(format_args!("MX: {}", v)),
+            Record::TXT(ref v) => f.write_fmt(format_args!("TXT: {}", v)),
+        }
+    }
 }
 
 pub type DetectorResult<'a> = Result<&'a Vec<Record>, ()>;

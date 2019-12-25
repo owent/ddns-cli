@@ -11,8 +11,6 @@ pub type DriverResult = Result<i32, ()>;
 mod cloudflare;
 pub type Cloudflare = cloudflare::Cloudflare;
 pub type SharedProgramOptions = super::option::SharedProgramOptions;
-
-#[allow(dead_code)]
 pub type HttpMethod = super::option::HttpMethod;
 
 pub trait Driver {

@@ -71,6 +71,7 @@ pub fn app<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("http-user-agent")
                 .long("http-user-agent")
+                .takes_value(true)
                 .help("Set user agent for http request"),
         )
         .arg(
@@ -116,7 +117,7 @@ fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
     ProgramOptions {
         timeout: Duration::from_millis(unwraper_from_str_or(matches, "timeout", 60000)),
         insecure: matches.is_present("insecure"),
-        logger: slog::Logger::root(drain, o!("tag" => format!("[{}]", "main"))),
+        logger: slog::Logger::root(drain, o!()),
         http_user_agent: unwraper_option_or(
             &matches,
             "http-user-agent",
@@ -231,7 +232,7 @@ where
 
 impl ProgramOptions {
     pub fn create_logger(&self, tag: &str) -> slog::Logger {
-        self.logger.new(o!("tag" => format!("[{}]", tag)))
+        self.logger.new(o!("module" => format!("[{}]", tag)))
     }
 
     pub fn create_proxy(&self) -> Option<reqwest::Proxy> {

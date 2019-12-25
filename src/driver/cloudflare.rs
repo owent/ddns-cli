@@ -2,15 +2,16 @@ pub use core::future::Future;
 use futures::future::{self, BoxFuture, FutureExt};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
 
 extern crate clap;
 use clap::{App, Arg, ArgMatches};
 
 use super::super::option;
 use super::{Driver, DriverResult, Record};
+use reqwest::header::CONTENT_TYPE;
 
 type SharedProgramOptions = super::SharedProgramOptions;
+type HttpMethod = super::HttpMethod;
 
 pub struct Cloudflare {
     zone_id: String,
@@ -38,7 +39,7 @@ impl Driver for Cloudflare {
                 .long("cf-domain")
                 .value_name("DOMAIN")
                 .takes_value(true)
-                .help("Add domain to update using cloudflare API."),
+                .help("Add domain to update using cloudflare API"),
         )
     }
 
@@ -83,105 +84,86 @@ impl Default for Cloudflare {
 
 #[derive(Serialize, Deserialize)]
 struct CloudflareRecord {
-    r#type: &'static str,
-    name: String,
-    content: String,
-    // ttl:
-    priority: i32,
-    proxied: bool,
+    pub r#type: &'static str,
+    pub name: String,
+    pub content: String,
+    pub ttl: i32,
+    // pub priority: i32,
+    pub proxied: bool,
 }
 
 struct CloudflareRecordAction {
-    record: CloudflareRecord,
-    is_create: bool,
+    pub record: CloudflareRecord,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloudflareGetResponseRecord {
+    pub id: String,
+    pub r#type: String,
+    pub name: String,
+    pub content: String,
+    pub zone_id: String,
+    pub zone_name: String,
+    pub modified_on: String,
+    pub created_on: String,
+    pub proxiable: bool,
+    pub proxied: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloudflareResponsePage {
+    pub page: i32,
+    pub per_page: i32,
+    pub total_pages: i32,
+    pub count: i32,
+    pub total_count: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloudflareGetResponseResult {
+    pub result: Vec<CloudflareGetResponseRecord>,
+    pub result_info: CloudflareResponsePage,
+    pub success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloudflareResponseError {
+    pub code: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloudflareResponseResult {
+    pub success: bool,
+    pub errors: Vec<CloudflareResponseError>,
+}
+
+static CFHEAD_CONTENT_TYPE: &str = "application/json";
+static CFRSP_EMPTY_STRING: &str = "";
+
+impl CloudflareResponseResult {
+    pub fn get_error_message<'a, 'b>(&'a self) -> &'b str
+    where
+        'a: 'b,
+    {
+        if self.errors.is_empty() {
+            CFRSP_EMPTY_STRING
+        } else {
+            &self.errors[0].message
+        }
+    }
 }
 
 impl Cloudflare {
     async fn update<'a, 'b>(
         &'a mut self,
-        _: SharedProgramOptions,
+        options: SharedProgramOptions,
         recs: &'b Vec<Record>,
     ) -> DriverResult
     where
         'b: 'a,
     {
-        let get_by_page_url = "https://api.cloudflare.com/client/v4/zones/{0}/dns_records?page=1&per_page=10&order=name&name={1}";
-        /*
-        {
-            "result": [],
-            "result_info": {
-                "page": 1,
-                "per_page": 50,
-                "total_pages": 0,
-                "count": 0,
-                "total_count": 0
-            },
-            "success": true,
-            "errors": [],
-            "messages": []
-        }
-        */
-        /*
-        {
-            "result": [
-                {
-                "id": "ac280f010d11ab1f5d6fe696d98ab4dd",
-                "type": "A",
-                "name": "vr-m.ouri.app",
-                "content": "119.28.178.13",
-                "proxiable": true,
-                "proxied": false,
-                "ttl": 1,
-                "locked": false,
-                "zone_id": "afb9539c0ceca4df01185f3f00351514",
-                "zone_name": "ouri.app",
-                "modified_on": "2019-11-02T02:48:59.550587Z",
-                "created_on": "2019-11-02T02:48:59.550587Z",
-                "meta": {
-                    "auto_added": false,
-                    "managed_by_apps": false,
-                    "managed_by_argo_tunnel": false
-                }
-                },
-                {
-                "id": "5aa23d33fd0cf7016438604fd445b056",
-                "type": "A",
-                "name": "vr-m.ouri.app",
-                "content": "119.28.56.48",
-                "proxiable": true,
-                "proxied": false,
-                "ttl": 1,
-                "locked": false,
-                "zone_id": "afb9539c0ceca4df01185f3f00351514",
-                "zone_name": "ouri.app",
-                "modified_on": "2019-06-02T00:52:46.987069Z",
-                "created_on": "2019-06-02T00:52:46.987069Z",
-                "meta": {
-                    "auto_added": false,
-                    "managed_by_apps": false,
-                    "managed_by_argo_tunnel": false
-                }
-                }
-            ],
-            "result_info": {
-                "page": 1,
-                "per_page": 50,
-                "total_pages": 1,
-                "count": 2,
-                "total_count": 2
-            },
-            "success": true,
-            "errors": [],
-            "messages": []
-            }
-        */
-        let create_record_url = "https://api.cloudflare.com/client/v4/zones/{0}/dns_records";
-        let update_record_url = "https://api.cloudflare.com/client/v4/zones/{0}/dns_records/{1}";
-        let delete_record_url = "https://api.cloudflare.com/client/v4/zones/{0}/dns_records/{1}";
-        let token_header = ("Authorization", "Bearer {0}");
-        let content_type = ("Content-Type", "application/json");
-
-        let actions: Vec<CloudflareRecordAction> = recs
+        let mut actions: Vec<CloudflareRecordAction> = recs
             .iter()
             .map(|ele| match ele {
                 Record::A(r) => CloudflareRecordAction {
@@ -189,60 +171,291 @@ impl Cloudflare {
                         r#type: "A",
                         name: String::default(),
                         content: r.to_string(),
-                        priority: 10,
+                        ttl: 1,
                         proxied: false,
                     },
-                    is_create: true,
                 },
                 Record::AAAA(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "AAAA",
                         name: String::default(),
                         content: r.to_string(),
-                        priority: 10,
+                        ttl: 1,
                         proxied: false,
                     },
-                    is_create: true,
                 },
                 Record::CNAME(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "CNAME",
                         name: String::default(),
                         content: r.clone(),
-                        priority: 10,
+                        ttl: 1,
                         proxied: false,
                     },
-                    is_create: true,
                 },
                 Record::MX(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "MX",
                         name: String::default(),
                         content: r.clone(),
-                        priority: 10,
+                        ttl: 1,
                         proxied: false,
                     },
-                    is_create: true,
                 },
                 Record::TXT(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "TXT",
                         name: String::default(),
                         content: r.clone(),
-                        priority: 10,
+                        ttl: 1,
                         proxied: false,
                     },
-                    is_create: true,
                 },
             })
             .collect();
 
-        if let Some(ref logger) = self.logger {
-            for x in actions {
-                let serialized = serde_json::to_string(&x.record).unwrap();
-                info!(logger, "{}", serialized);
+        for ref domain in &self.domains {
+            let url = format!(
+                "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
+                self.zone_id
+            );
+            // page=1&per_page=50&order=name&name={}
+            let cli = options
+                .http(HttpMethod::GET, &url)
+                .bearer_auth(self.token.clone())
+                .query(&[
+                    ("page", "1"),
+                    ("per_page", "100"),
+                    ("order", "name"),
+                    ("name", domain),
+                ])
+                .header(CONTENT_TYPE, CFHEAD_CONTENT_TYPE);
+
+            let rsp = match cli.send().await {
+                Ok(v) => v,
+                Err(e) => {
+                    if let Some(ref logger) = self.logger {
+                        error!(logger, "Send HTTP request failed, error: {}", e);
+                    }
+                    continue;
+                }
+            };
+
+            let rsp_text = match rsp.text().await {
+                Ok(v) => v,
+                Err(e) => {
+                    if let Some(ref logger) = self.logger {
+                        error!(logger, "Fetch response body failed, error: {}", e);
+                    }
+                    continue;
+                }
+            };
+
+            let result = match serde_json::from_str::<CloudflareGetResponseResult>(&rsp_text) {
+                Ok(v) => v,
+                Err(e) => {
+                    if let Some(ref logger) = self.logger {
+                        error!(
+                            logger,
+                            "Parse response body failed, error: {}.\nbody: {}", e, rsp_text
+                        );
+                    }
+                    continue;
+                }
+            };
+
+            let mut record_no = 0;
+            loop {
+                record_no += 1;
+                let index = record_no - 1;
+                if index >= actions.len() && index >= result.result.len() {
+                    break;
+                }
+
+                // Delete remain records
+                if index >= actions.len() {
+                    let delete_url = format!(
+                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
+                        self.zone_id, &result.result[index].id
+                    );
+                    match options
+                        .http(HttpMethod::DELETE, &delete_url)
+                        .bearer_auth(self.token.clone())
+                        .header(CONTENT_TYPE, CFHEAD_CONTENT_TYPE)
+                        .send()
+                        .await
+                    {
+                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
+                            Ok(res) => {
+                                if let Some(ref logger) = self.logger {
+                                    debug!(
+                                        logger,
+                                        "Delete {} for {} {}.{}",
+                                        &result.result[index].content,
+                                        &result.result[index].name,
+                                        if res.success { "success" } else { "failed" },
+                                        res.get_error_message()
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(ref logger) = self.logger {
+                                    error!(
+                                        logger,
+                                        "Delete {} for {} failed, error: {}",
+                                        &result.result[index].content,
+                                        &result.result[index].name,
+                                        e
+                                    );
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            if let Some(ref logger) = self.logger {
+                                error!(
+                                    logger,
+                                    "Delete {} for {} failed, error: {}",
+                                    &result.result[index].content,
+                                    &result.result[index].name,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                // Create new records
+                if index >= result.result.len() {
+                    let create_url = format!(
+                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
+                        self.zone_id
+                    );
+                    actions[index].record.name = domain.to_string();
+                    match options
+                        .http(HttpMethod::POST, &create_url)
+                        .bearer_auth(self.token.clone())
+                        .json(&actions[index].record)
+                        .send()
+                        .await
+                    {
+                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
+                            Ok(res) => {
+                                if let Some(ref logger) = self.logger {
+                                    debug!(
+                                        logger,
+                                        "Create {} for {} {}.{}",
+                                        &actions[index].record.content,
+                                        &actions[index].record.name,
+                                        if res.success { "success" } else { "failed" },
+                                        res.get_error_message()
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(ref logger) = self.logger {
+                                    error!(
+                                        logger,
+                                        "Create {} for {} failed, error: {}",
+                                        &actions[index].record.content,
+                                        &actions[index].record.name,
+                                        e
+                                    );
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            if let Some(ref logger) = self.logger {
+                                error!(
+                                    logger,
+                                    "Create {} for {} failed, error: {}",
+                                    &actions[index].record.content,
+                                    &actions[index].record.name,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                // Update record
+                if actions[index].record.content != result.result[index].content {
+                    let create_url = format!(
+                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
+                        self.zone_id, &result.result[index].id
+                    );
+                    actions[index].record.name = domain.to_string();
+                    match options
+                        .http(HttpMethod::PUT, &create_url)
+                        .bearer_auth(self.token.clone())
+                        .json(&actions[index].record)
+                        .send()
+                        .await
+                    {
+                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
+                            Ok(res) => {
+                                if let Some(ref logger) = self.logger {
+                                    debug!(
+                                        logger,
+                                        "Update {} to {} for {} {}.{}",
+                                        &result.result[index].content,
+                                        &actions[index].record.content,
+                                        &actions[index].record.name,
+                                        if res.success { "success" } else { "failed" },
+                                        res.get_error_message()
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(ref logger) = self.logger {
+                                    error!(
+                                        logger,
+                                        "Update {} to {} for {} failed, error: {}",
+                                        &result.result[index].content,
+                                        &actions[index].record.content,
+                                        &actions[index].record.name,
+                                        e
+                                    );
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            if let Some(ref logger) = self.logger {
+                                error!(
+                                    logger,
+                                    "Update {} to {} for {} failed, error: {}",
+                                    &result.result[index].content,
+                                    &actions[index].record.content,
+                                    &actions[index].record.name,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    if let Some(ref logger) = self.logger {
+                        debug!(
+                            logger,
+                            "Record {} for {} not changed, do nothing",
+                            &actions[index].record.content,
+                            &result.result[index].name
+                        );
+                    }
+                }
+            }
+
+            if let Some(ref logger) = self.logger {
+                let action_description: Vec<String> = recs.iter().map(|r| r.to_string()).collect();
+                info!(
+                    logger,
+                    "Update domain name {} with {} finished",
+                    domain,
+                    action_description.join(",")
+                );
             }
         }
+
         Ok(0)
     }
 }
