@@ -207,20 +207,6 @@ script:
 
     fi
 
-    if [ -e "target/$TARGET/release/etc" ]; then
-
-    rm -rf "target/$TARGET/release/etc";
-
-    fi
-
-    if [ -e "target/$TARGET/release/tools" ]; then
-
-    rm -rf "target/$TARGET/release/tools";
-
-    fi
-
-    cp -rf etc tools "target/$TARGET/release"/ ;
-
     cd "target/$TARGET/release/";
 
     mkdir -p bin;
@@ -235,7 +221,7 @@ script:
 
     fi
 
-    tar -zcvf $TARGET.tar.gz etc bin;
+    tar -zcvf $TARGET.tar.gz bin;
 
     cd ../../..;
 

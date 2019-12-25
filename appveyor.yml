@@ -45,10 +45,6 @@ build_script:
   - ps: >-
       & cargo build --target $Env:TARGET --release
 
-      Copy-Item -Force -Recurse etc "./target/$Env:TARGET/release/"
-
-      Copy-Item -Force -Recurse tools "./target/$Env:TARGET/release/"
-
       cd "./target/$Env:TARGET/release/"
 
       mkdir bin
@@ -57,11 +53,11 @@ build_script:
 
       if ( Test-Path "$Env:TARGET.zip" ) { Remove-Item -Force "$Env:TARGET.zip" }
 
-      Compress-Archive -DestinationPath "$Env:TARGET.zip" -Path etc,bin,tools
+      Compress-Archive -DestinationPath "$Env:TARGET.zip" -Path bin
 
       Get-ChildItem
 
-      Get-ChildItem -Recurse etc,bin,tools
+      Get-ChildItem -Recurse bin
 
       Copy-Item -Force "$Env:TARGET.zip" ../../../
 
