@@ -2,7 +2,7 @@
 name = "ddns-cli"
 version = "0.1.0"
 readme = "README.md"
-description = "ddns client for cloadflare"
+description = "ddns client for cloudflare"
 authors = ["owent <admin@owent.net>"]
 homepage = "https://crates.io/crates/ddns-cli"
 documentation = "https://github.com/owt5008137/ddns-cli"
