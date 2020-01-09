@@ -125,7 +125,7 @@ script:
     cp -f ddns-cli* bin/;
     fi
     tar -zcvf $TARGET.tar.gz bin;
-    cp -f ../../Dockerfile ./;
+    cp -f ../../../Dockerfile ./;
     if [ "$TARGET" == "x86_64-unknown-linux-musl" ] && [ "x" != "x$TRAVIS_TAG" ]; then
     echo "$DOCKER_TOKEN" | docker login -u "owt5008137" --password-stdin docker.io
     docker build --force-rm --tag docker.io/owt5008137/ddns-cli:latest .
