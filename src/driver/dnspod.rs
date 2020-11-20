@@ -249,7 +249,7 @@ impl Dnspod {
                             mx: String::from("10"), // 0-20
                             domain_id: String::default(),
                             record_line: String::default(),
-                            record_line_id: String::from("10=0"),
+                            record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
                     Record::AAAA(r) => DnspodRecordAction {
@@ -261,7 +261,7 @@ impl Dnspod {
                             mx: String::from("10"), // 0-20
                             domain_id: String::default(),
                             record_line: String::default(),
-                            record_line_id: String::from("10=0"),
+                            record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
                     Record::CNAME(r) => DnspodRecordAction {
@@ -273,7 +273,7 @@ impl Dnspod {
                             mx: String::from("10"), // 0-20
                             domain_id: String::default(),
                             record_line: String::default(),
-                            record_line_id: String::from("10=0"),
+                            record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
                     Record::MX(r) => DnspodRecordAction {
@@ -285,7 +285,7 @@ impl Dnspod {
                             mx: String::from("10"), // 0-20
                             domain_id: String::default(),
                             record_line: String::default(),
-                            record_line_id: String::from("10=0"),
+                            record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
                     Record::TXT(r) => DnspodRecordAction {
@@ -297,7 +297,7 @@ impl Dnspod {
                             mx: String::from("10"), // 0-20
                             domain_id: String::default(),
                             record_line: String::default(),
-                            record_line_id: String::from("10=0"),
+                            record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
                 })
