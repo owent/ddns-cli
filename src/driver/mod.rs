@@ -9,7 +9,10 @@ pub type Record = detector::Record;
 pub type DriverResult = Result<i32, ()>;
 
 mod cloudflare;
+mod dnspod;
+
 pub type Cloudflare = cloudflare::Cloudflare;
+pub type Dnspod = dnspod::Dnspod;
 pub type SharedProgramOptions = super::option::SharedProgramOptions;
 pub type HttpMethod = super::option::HttpMethod;
 

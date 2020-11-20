@@ -82,7 +82,7 @@ impl Default for Cloudflare {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct CloudflareRecord {
     pub r#type: &'static str,
     pub name: String,
@@ -92,6 +92,7 @@ struct CloudflareRecord {
     pub proxied: bool,
 }
 
+#[derive(Debug)]
 struct CloudflareRecordAction {
     pub record: CloudflareRecord,
 }
@@ -108,6 +109,48 @@ struct CloudflareGetResponseRecord {
     pub created_on: String,
     pub proxiable: bool,
     pub proxied: bool,
+}
+
+impl PartialEq for CloudflareRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.r#type == other.r#type && self.name == other.name
+    }
+}
+
+impl PartialEq for CloudflareRecordAction {
+    fn eq(&self, other: &Self) -> bool {
+        self.record == other.record
+    }
+}
+
+impl PartialEq for CloudflareGetResponseRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.r#type == other.r#type && self.name == other.name
+    }
+}
+
+impl PartialEq<CloudflareRecord> for CloudflareGetResponseRecord {
+    fn eq(&self, other: &CloudflareRecord) -> bool {
+        self.r#type == other.r#type && self.name == other.name
+    }
+}
+
+impl PartialEq<CloudflareGetResponseRecord> for CloudflareRecord {
+    fn eq(&self, other: &CloudflareGetResponseRecord) -> bool {
+        self.r#type == other.r#type && self.name == other.name
+    }
+}
+
+impl PartialEq<CloudflareRecordAction> for CloudflareGetResponseRecord {
+    fn eq(&self, other: &CloudflareRecordAction) -> bool {
+        self.r#type == other.record.r#type && self.name == other.record.name
+    }
+}
+
+impl PartialEq<CloudflareGetResponseRecord> for CloudflareRecordAction {
+    fn eq(&self, other: &CloudflareGetResponseRecord) -> bool {
+        self.record.r#type == other.r#type && self.record.name == other.name
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -163,6 +206,7 @@ impl Cloudflare {
     where
         'b: 'a,
     {
+        let mut ret: i32 = 0;
         let mut actions: Vec<CloudflareRecordAction> = recs
             .iter()
             .map(|ele| match ele {
@@ -264,198 +308,187 @@ impl Cloudflare {
                 }
             };
 
-            let mut record_no = 0;
-            loop {
-                record_no += 1;
-                let index = record_no - 1;
-                if index >= actions.len() && index >= result.result.len() {
-                    break;
+            let mut pending_to_delete: Vec<&CloudflareGetResponseRecord> = vec![];
+            let mut pending_to_create: Vec<&mut CloudflareRecordAction> = vec![];
+
+            for old_record in &result.result {
+                let keep = actions.iter().any(|act| {
+                    act.record.r#type == old_record.r#type
+                        && act.record.content == old_record.content
+                });
+                if !keep {
+                    pending_to_delete.push(old_record);
+                }
+            }
+
+            for mut new_record in &mut actions {
+                let already_exists = result.result.iter().any(|res| {
+                    res.r#type == new_record.record.r#type
+                        && res.content == new_record.record.content
+                });
+                if !already_exists {
+                    new_record.record.name = domain.to_string();
+                    pending_to_create.push(new_record);
+                }
+            }
+
+            if let Some(ref logger) = self.logger {
+                if result.result.len() > 0 {
+                    debug!(logger, "Old records:");
+                    for ref log_item in &result.result {
+                        debug!(logger, "     -- {:?}", log_item);
+                    }
                 }
 
-                // Delete remain records
-                if index >= actions.len() {
-                    let delete_url = format!(
-                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
-                        self.zone_id, &result.result[index].id
-                    );
-                    match options
-                        .http(HttpMethod::DELETE, &delete_url)
-                        .bearer_auth(self.token.clone())
-                        .header(CONTENT_TYPE, CFHEAD_CONTENT_TYPE)
-                        .send()
-                        .await
-                    {
-                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
-                            Ok(res) => {
-                                if let Some(ref logger) = self.logger {
-                                    debug!(
-                                        logger,
-                                        "Delete {} for {} {}.{}",
-                                        &result.result[index].content,
-                                        &result.result[index].name,
-                                        if res.success { "success" } else { "failed" },
-                                        res.get_error_message()
-                                    );
-                                }
+                if pending_to_delete.len() > 0 {
+                    debug!(logger, "Pending to delete:");
+                    for ref log_item in &pending_to_delete {
+                        debug!(logger, "     -- {:?}", log_item);
+                    }
+                }
+                if pending_to_create.len() > 0 {
+                    debug!(logger, "Pending to create:");
+                    for ref log_item in &pending_to_create {
+                        debug!(logger, "     -- {:?}", log_item);
+                    }
+                }
+            }
+
+            let mut failed_count: i32 = 0;
+            // Delete records no more need
+            for ref old_record in pending_to_delete {
+                let delete_url = format!(
+                    "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
+                    self.zone_id, &old_record.id
+                );
+                match options
+                    .http(HttpMethod::DELETE, &delete_url)
+                    .bearer_auth(self.token.clone())
+                    .header(CONTENT_TYPE, CFHEAD_CONTENT_TYPE)
+                    .send()
+                    .await
+                {
+                    Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
+                        Ok(res) => {
+                            if let Some(ref logger) = self.logger {
+                                debug!(
+                                    logger,
+                                    "Delete {} for {} {}.{}",
+                                    &old_record.content,
+                                    &old_record.name,
+                                    if res.success { "success" } else { "failed" },
+                                    res.get_error_message()
+                                );
                             }
-                            Err(e) => {
-                                if let Some(ref logger) = self.logger {
-                                    error!(
-                                        logger,
-                                        "Delete {} for {} failed, error: {}",
-                                        &result.result[index].content,
-                                        &result.result[index].name,
-                                        e
-                                    );
-                                }
-                            }
-                        },
+                        }
                         Err(e) => {
+                            failed_count += 1;
                             if let Some(ref logger) = self.logger {
                                 error!(
                                     logger,
                                     "Delete {} for {} failed, error: {}",
-                                    &result.result[index].content,
-                                    &result.result[index].name,
+                                    &old_record.content,
+                                    &old_record.name,
                                     e
                                 );
                             }
                         }
+                    },
+                    Err(e) => {
+                        failed_count += 1;
+                        if let Some(ref logger) = self.logger {
+                            error!(
+                                logger,
+                                "Delete {} for {} failed, error: {}",
+                                &old_record.content,
+                                &old_record.name,
+                                e
+                            );
+                        }
                     }
-                    continue;
                 }
+            }
 
-                // Create new records
-                if index >= result.result.len() {
-                    let create_url = format!(
-                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
-                        self.zone_id
-                    );
-                    actions[index].record.name = domain.to_string();
-                    match options
-                        .http(HttpMethod::POST, &create_url)
-                        .bearer_auth(self.token.clone())
-                        .json(&actions[index].record)
-                        .send()
-                        .await
-                    {
-                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
-                            Ok(res) => {
-                                if let Some(ref logger) = self.logger {
-                                    debug!(
-                                        logger,
-                                        "Create {} for {} {}.{}",
-                                        &actions[index].record.content,
-                                        &actions[index].record.name,
-                                        if res.success { "success" } else { "failed" },
-                                        res.get_error_message()
-                                    );
-                                }
+            // Create new records
+            for ref mut new_record in pending_to_create {
+                let create_url = format!(
+                    "https://api.cloudflare.com/client/v4/zones/{}/dns_records",
+                    self.zone_id
+                );
+                match options
+                    .http(HttpMethod::POST, &create_url)
+                    .bearer_auth(self.token.clone())
+                    .json(&new_record.record)
+                    .send()
+                    .await
+                {
+                    Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
+                        Ok(res) => {
+                            if let Some(ref logger) = self.logger {
+                                debug!(
+                                    logger,
+                                    "Create {} for {} {}.{}",
+                                    &new_record.record.content,
+                                    &new_record.record.name,
+                                    if res.success { "success" } else { "failed" },
+                                    res.get_error_message()
+                                );
                             }
-                            Err(e) => {
-                                if let Some(ref logger) = self.logger {
-                                    error!(
-                                        logger,
-                                        "Create {} for {} failed, error: {}",
-                                        &actions[index].record.content,
-                                        &actions[index].record.name,
-                                        e
-                                    );
-                                }
-                            }
-                        },
+                        }
                         Err(e) => {
+                            failed_count += 1;
                             if let Some(ref logger) = self.logger {
                                 error!(
                                     logger,
                                     "Create {} for {} failed, error: {}",
-                                    &actions[index].record.content,
-                                    &actions[index].record.name,
+                                    &new_record.record.content,
+                                    &new_record.record.name,
                                     e
                                 );
                             }
                         }
-                    }
-                    continue;
-                }
-
-                // Update record
-                if actions[index].record.content != result.result[index].content {
-                    let create_url = format!(
-                        "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
-                        self.zone_id, &result.result[index].id
-                    );
-                    actions[index].record.name = domain.to_string();
-                    match options
-                        .http(HttpMethod::PUT, &create_url)
-                        .bearer_auth(self.token.clone())
-                        .json(&actions[index].record)
-                        .send()
-                        .await
-                    {
-                        Ok(rsp) => match rsp.json::<CloudflareResponseResult>().await {
-                            Ok(res) => {
-                                if let Some(ref logger) = self.logger {
-                                    debug!(
-                                        logger,
-                                        "Update {} to {} for {} {}.{}",
-                                        &result.result[index].content,
-                                        &actions[index].record.content,
-                                        &actions[index].record.name,
-                                        if res.success { "success" } else { "failed" },
-                                        res.get_error_message()
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                if let Some(ref logger) = self.logger {
-                                    error!(
-                                        logger,
-                                        "Update {} to {} for {} failed, error: {}",
-                                        &result.result[index].content,
-                                        &actions[index].record.content,
-                                        &actions[index].record.name,
-                                        e
-                                    );
-                                }
-                            }
-                        },
-                        Err(e) => {
-                            if let Some(ref logger) = self.logger {
-                                error!(
-                                    logger,
-                                    "Update {} to {} for {} failed, error: {}",
-                                    &result.result[index].content,
-                                    &actions[index].record.content,
-                                    &actions[index].record.name,
-                                    e
-                                );
-                            }
+                    },
+                    Err(e) => {
+                        failed_count += 1;
+                        if let Some(ref logger) = self.logger {
+                            error!(
+                                logger,
+                                "Create {} for {} failed, error: {}",
+                                &new_record.record.content,
+                                &new_record.record.name,
+                                e
+                            );
                         }
-                    }
-                } else {
-                    if let Some(ref logger) = self.logger {
-                        debug!(
-                            logger,
-                            "Record {} for {} not changed, do nothing",
-                            &actions[index].record.content,
-                            &result.result[index].name
-                        );
                     }
                 }
             }
 
             if let Some(ref logger) = self.logger {
                 let action_description: Vec<String> = recs.iter().map(|r| r.to_string()).collect();
-                info!(
-                    logger,
-                    "Update domain name {} with {} finished",
-                    domain,
-                    action_description.join(",")
-                );
+                if failed_count > 0 {
+                    ret = 1;
+                    error!(
+                        logger,
+                        "Update domain name {} to {} with {} error(s)",
+                        domain,
+                        action_description.join(","),
+                        failed_count
+                    );
+                } else {
+                    info!(
+                        logger,
+                        "Update domain name {} to {} finished",
+                        domain,
+                        action_description.join(",")
+                    );
+                }
             }
         }
 
-        Ok(0)
+        if ret == 0 {
+            Ok(ret)
+        } else {
+            Err(())
+        }
     }
 }

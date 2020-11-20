@@ -11,7 +11,7 @@ use clap::{App, Arg, ArgMatches};
 use slog;
 use slog::Drain;
 
-use reqwest::{self, r#async::ClientBuilder};
+use reqwest::{self, ClientBuilder};
 
 #[derive(Debug, Clone)]
 pub struct ProgramOptions {
@@ -251,7 +251,7 @@ impl ProgramOptions {
         }
     }
 
-    pub fn http<U>(&self, method: HttpMethod, url: U) -> reqwest::r#async::RequestBuilder
+    pub fn http<U>(&self, method: HttpMethod, url: U) -> reqwest::RequestBuilder
     where
         U: reqwest::IntoUrl,
     {
@@ -259,7 +259,7 @@ impl ProgramOptions {
             .danger_accept_invalid_certs(!self.insecure)
             .connect_timeout(self.timeout)
             .gzip(true)
-            .redirect(reqwest::RedirectPolicy::limited(32))
+            .redirect(reqwest::redirect::Policy::limited(32))
             .timeout(self.timeout)
             //.use_rustls_tls()
             ;

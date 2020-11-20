@@ -5,6 +5,8 @@ use std::alloc::System;
 #[global_allocator]
 static GLOBAL: System = System;
 
+use std::process;
+
 extern crate bytes;
 extern crate hex;
 extern crate regex;
@@ -22,6 +24,7 @@ extern crate clap;
 #[macro_use]
 extern crate slog;
 
+extern crate async_std;
 extern crate http;
 extern crate tokio;
 // extern crate hyper;
@@ -42,10 +45,13 @@ fn register_detectors() -> Vec<Box<dyn detector::Detector>> {
 }
 
 fn register_drivers() -> Vec<Box<dyn driver::Driver>> {
-    vec![Box::new(driver::Cloudflare::default())]
+    vec![
+        Box::new(driver::Cloudflare::default()),
+        Box::new(driver::Dnspod::default()),
+    ]
 }
 
-#[tokio::main]
+#[async_std::main]
 async fn main() {
     let mut detectors = register_detectors();
     let mut drivers = register_drivers();
@@ -80,7 +86,14 @@ async fn main() {
     }
 
     records.dedup();
+    let mut exit_code: i32 = 0;
     for ref mut driver in &mut drivers {
-        let _ = driver.run(&options, &records).await;
+        if let Err(_) = driver.run(&options, &records).await {
+            exit_code = 1;
+        }
+    }
+
+    if exit_code > 0 {
+        process::exit(exit_code);
     }
 }
