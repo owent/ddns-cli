@@ -81,9 +81,6 @@ matrix:
       sudo: required
       env: USING_SYSTEM_ALLOC=0 USING_CROSS=1 TARGET=x86_64-sun-solaris
 before_install:
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then ulimit -a; sysctl -a; sudo apt-get -qq
-    update; fi
-  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update; fi
   - rustup self update;
   - rustup update --force stable;
   - |-
