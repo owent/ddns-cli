@@ -87,7 +87,7 @@ jobs:
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           which docker || true;
           cp -f ../../../Dockerfile ./ ;
-          TAG_NAME = echo "${{ github.ref }}" | awk 'match($0, /refs\/tags\/(.+)/, tag_name) {print tag_name[1]}' ;
+          TAG_NAME="$(echo "${{ github.ref }}" | awk 'match($0, /refs\/tags\/(.+)/, tag_name) {print tag_name[1]}')";
           echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "owt5008137" --password-stdin docker.io
           docker build --force-rm --tag docker.io/owt5008137/ddns-cli:latest -f Dockerfile . ;
           docker tag docker.io/owt5008137/ddns-cli:latest docker.io/owt5008137/ddns-cli:$TAG_NAME ;
@@ -97,6 +97,7 @@ jobs:
   cross_build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
+    if: ${{ contains(github.ref, 'refs/tags/') }}
     # This job runs on Linux
     strategy:
       matrix:
