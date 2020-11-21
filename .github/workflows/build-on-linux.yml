@@ -1,6 +1,12 @@
 name: "Build On Linux"
 
-on: [push]
+on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#webhook-events
+  push:
+    branches: # Array of patterns that match refs/heads
+      - master # Push events on master branch
+      - dev
+    tags:
+      - "*"
 
 jobs:
   native_build: # job id, can be any string
@@ -39,6 +45,47 @@ jobs:
         with:
           command: test
           args: --release --verbose --target ${{ matrix.target }}
+      - name: Prepare package
+        shell: bash
+        if: ${{ contains(github.ref, "refs/tags/") }}
+        run: |
+          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          mkdir -p bin;
+          if [[ -e ddns-cli ]]; then
+            cp -f ddns-cli bin/ddns-cli ;
+          elif [[ -e "ddns-cli.exe" ]]; then
+            cp -f ddns-cli.exe bin/ddns-cli.exe ;
+          else
+            cp -f ddns-cli* bin/ ;
+          fi
+          tar -zcvf ${{ matrix.target }}.tar.gz bin ;
+          cd "$GITHUB_WORKSPACE" ;
+
+      - uses: xresloader/upload-to-github-release@master
+        if: ${{ contains(github.ref, "refs/tags/") }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "target/${{ matrix.target }}/release.tar.gz"
+          tags: true
+          draft: false
+          prerelease: false
+          overwrite: true
+
+      - name: Update docker
+        shell: bash
+        if: ${{ contains(github.ref, "refs/tags/") }}
+        run: |
+          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          which docker || true;
+          cp -f ../../../Dockerfile ./ ;
+          TAG_NAME = echo "${{ github.ref }}" | awk 'match($0, /refs\/tags\/(.+)/, tag_name) {print tag_name[1]}' ;
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "owt5008137" --password-stdin docker.io
+          docker build --force-rm --tag docker.io/owt5008137/ddns-cli:latest -f Dockerfile . ;
+          docker tag docker.io/owt5008137/ddns-cli:latest docker.io/owt5008137/ddns-cli:$TAG_NAME ;
+          docker push docker.io/owt5008137/ddns-cli:latest ;
+          docker push docker.io/owt5008137/ddns-cli:$TAG_NAME ;
+          cd "$GITHUB_WORKSPACE" ;
   cross_build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
@@ -93,3 +140,27 @@ jobs:
       - name: Cross Build
         run: |
             cross build --target ${{ matrix.target }} --release --verbose ;
+      - name: Prepare package
+        shell: bash
+        if: ${{ contains(github.ref, "refs/tags/") }}
+        run: |
+          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          mkdir -p bin;
+          if [[ -e ddns-cli ]]; then
+            cp -f ddns-cli bin/ddns-cli ;
+          elif [[ -e "ddns-cli.exe" ]]; then
+            cp -f ddns-cli.exe bin/ddns-cli.exe ;
+          else
+            cp -f ddns-cli* bin/ ;
+          fi
+          tar -zcvf ${{ matrix.target }}.tar.gz bin ;
+      - uses: xresloader/upload-to-github-release@master
+        if: ${{ contains(github.ref, "refs/tags/") }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "target/${{ matrix.target }}/release.tar.gz"
+          tags: true
+          draft: false
+          prerelease: false
+          overwrite: true
