@@ -18,6 +18,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
+      - name: Cache cargo modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -34,7 +42,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --verbose --target ${{ matrix.target }}
+          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: bash
         if: ${{ contains(github.ref, 'refs/tags/') }}
