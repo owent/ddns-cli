@@ -3,7 +3,43 @@ name: "Build On Linux"
 on: [push]
 
 jobs:
-  build: # job id, can be any string
+  native_build: # job id, can be any string
+    # Job name is Build And Publish
+    name: Build
+    # This job runs on Linux
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        rust: [stable]
+        target: [
+            x86_64-unknown-linux-gnu
+          ]
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKGRS_DYNAMIC: 1
+      OPENSSL_STATIC: 1
+      PKG_CONFIG_ALL_STATIC: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          default: true
+          override: true
+      - name: cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --verbose --target ${{ matrix.target }}
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --verbose --target ${{ matrix.target }}
+  cross_build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
     # This job runs on Linux
@@ -13,32 +49,31 @@ jobs:
         rust: [stable]
         target: [
             aarch64-unknown-linux-gnu,
+            #aarch64-unknown-linux-musl,
             arm-unknown-linux-gnueabi,
             armv7-unknown-linux-gnueabihf,
-            i686-unknown-linux-gnu,
+            #armv7-unknown-linux-musleabihf,
+            #arm-unknown-linux-musleabihf,
+            #arm-unknown-linux-musleabi,
             #mips-unknown-linux-gnu,
             #mipsel-unknown-linux-gnu,
             #mips64-unknown-linux-gnuabi64,
             #mips64el-unknown-linux-gnuabi64,
+            #mips-unknown-linux-musl,
+            #mipsel-unknown-linux-musl,
             #powerpc-unknown-linux-gnu,
             #powerpc64-unknown-linux-gnu,
             #powerpc64le-unknown-linux-gnu,
-            x86_64-unknown-linux-gnu,
-            #aarch64-unknown-linux-musl,
-            #arm-unknown-linux-musleabihf,
-            #arm-unknown-linux-musleabi,
-            #armv7-unknown-linux-musleabihf,
+            i686-unknown-linux-gnu,
             i686-unknown-linux-musl,
-            #mips-unknown-linux-musl,
-            #mipsel-unknown-linux-musl,
             x86_64-unknown-linux-musl,
             aarch64-linux-android,
             arm-linux-androideabi,
             armv7-linux-androideabi,
             i686-linux-android,
             x86_64-linux-android,
-            x86_64-unknown-netbsd,
-            #x86_64-unknown-freebsd,
+            #x86_64-unknown-netbsd,
+            x86_64-unknown-freebsd,
             x86_64-sun-solaris,
           ]
     runs-on: ${{ matrix.os }}
@@ -46,25 +81,15 @@ jobs:
       VCPKGRS_DYNAMIC: 1
       OPENSSL_STATIC: 1
     steps:
-      - name: Setup Rust
-        uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: ${{ matrix.rust }}
-          targets: x86_64-unknown-linux-gnu
       - name: Checkout
-        uses: actions/checkout@v1
-      - name: Build
+        uses: actions/checkout@main
+      - name: Install nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Install cross
+        run: cargo install cross
+      - name: Cross Build
         run: |
-          if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
-            rustup target add ${{ matrix.target }} ;
-            rustup toolchain install stable-${{ matrix.target }} ;
-            env PKG_CONFIG_ALL_STATIC=1 cargo build --release --verbose --target ${{ matrix.target }} ;
-          else
-            cargo install xargo --force ;
-            cargo install cross --force ;
             cross build --target ${{ matrix.target }} --release --verbose ;
-          fi
-      - name: Run tests
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          cargo test --release --verbose --target ${{ matrix.target }}

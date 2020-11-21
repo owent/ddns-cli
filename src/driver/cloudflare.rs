@@ -380,6 +380,9 @@ impl Cloudflare {
                                     res.get_error_message()
                                 );
                             }
+                            if !res.success {
+                                failed_count += 1;
+                            }
                         }
                         Err(e) => {
                             failed_count += 1;
@@ -433,6 +436,9 @@ impl Cloudflare {
                                     if res.success { "success" } else { "failed" },
                                     res.get_error_message()
                                 );
+                            }
+                            if !res.success {
+                                failed_count += 1;
                             }
                         }
                         Err(e) => {

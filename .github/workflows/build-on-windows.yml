@@ -16,20 +16,21 @@ jobs:
     # x86_64-pc-windows-gnu, i686-pc-windows-gnu, # Github Action has no openssl on mingw32
     runs-on: ${{ matrix.os }}
     env:
-      VCPKGRS_DYNAMIC: 1
+      VCPKGRS_DYNAMIC: 0
       OPENSSL_STATIC: 1
+      OPENSSL_NO_VENDOR: 1
     steps:
-      - name: Setup Rust
-        uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: ${{ matrix.rust }}
-          targets: ${{ matrix.target }}
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@main
+      - name: Install nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
       - name: Install OpenSSL
         shell: bash
         run: |
-          if [ "${{ matrix.target }}" == "i686-pc-windows-msvc" ] || [ "${{ matrix.target }}" == "i686-pc-windows-gnu" ]; then
+          if [[ "${{ matrix.target }}" == "i686-pc-windows-msvc" ]] || [[ "${{ matrix.target }}" == "i686-pc-windows-gnu" ]]; then
             vcpkg install openssl --triplet x86-windows
             vcpkg install openssl --triplet x86-windows-static
           else
@@ -39,8 +40,8 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo build --release --verbose --target ${{ matrix.target }}
+          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo build --features with-vcpkg --release --verbose --target ${{ matrix.target }}
       - name: Run tests
         shell: bash
         run: |
-          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo test --release --verbose --target ${{ matrix.target }}
+          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo test --features with-vcpkg --release --verbose --target ${{ matrix.target }}

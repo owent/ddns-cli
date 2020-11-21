@@ -13,16 +13,25 @@ jobs:
         rust: [stable]
         target: [x86_64-apple-darwin]
     runs-on: ${{ matrix.os }}
+    env:
+      PKG_CONFIG_ALL_STATIC: 1
     steps:
-      - name: Setup Rust
-        uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: ${{ matrix.rust }}
       - name: Checkout
-        uses: actions/checkout@v1
-      - name: Build
-        run: |
-          env PKG_CONFIG_ALL_STATIC=1 cargo build --release --verbose --target ${{ matrix.target }}
+        uses: actions/checkout@main
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          default: true
+          override: true
+      - name: cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --verbose --target ${{ matrix.target }}
       - name: Run tests
-        run: |
-          cargo test --release --verbose --target ${{ matrix.target }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --verbose --target ${{ matrix.target }}

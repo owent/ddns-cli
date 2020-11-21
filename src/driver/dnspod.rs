@@ -2,7 +2,7 @@ use std::clone::Clone;
 use std::sync::Arc;
 
 pub use core::future::Future;
-use futures::future::{self, BoxFuture, FutureExt};
+use futures::future::{BoxFuture, FutureExt};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +21,10 @@ pub struct Dnspod {
     token: String,
     token_id: String,
     sub_domain: String,
-    logger: Option<slog::Logger>,
+    logger: Option<Arc<slog::Logger>>,
 }
+
+static DNSPOD_RESPONSE_CODE_SUCCESS: &str = "1";
 
 impl Driver for Dnspod {
     fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b> {
@@ -59,16 +61,12 @@ impl Driver for Dnspod {
         )
     }
 
-    fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
+    fn parse_options(&mut self, matches: &ArgMatches, _: &mut SharedProgramOptions) {
         self.domain_id = option::unwraper_option_or(&matches, "dp-domain-id", String::default());
         self.domain = option::unwraper_option_or(&matches, "dp-domain", String::default());
         self.token = option::unwraper_option_or(&matches, "dp-token", String::default());
         self.token_id = option::unwraper_option_or(&matches, "dp-token-id", String::default());
         self.sub_domain = option::unwraper_option_or(&matches, "dp-name", String::from("@"));
-
-        if !self.domain_id.is_empty() || !self.domain.is_empty() {
-            self.logger = Some(options.create_logger("Dnspod"));
-        }
     }
 
     fn run<'a, 'b, 'c>(
@@ -80,10 +78,6 @@ impl Driver for Dnspod {
         'a: 'b,
         'c: 'a,
     {
-        if self.logger.is_none() {
-            return future::ready(Ok(0)).boxed();
-        }
-
         self.update(options.clone(), &recs).boxed()
     }
 }
@@ -172,7 +166,7 @@ impl PartialEq<DnspodGetResponseRecord> for DnspodRecordAction {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct DnspodResponseStatus {
     pub code: String,
     pub message: String,
@@ -193,21 +187,36 @@ struct DnspodGetResponseResult {
     pub records: Option<Vec<DnspodGetResponseRecord>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct DnspodResponseResult {
     pub status: DnspodResponseStatus,
 }
 
 impl DnspodResponseResult {
-    pub fn get_error_message<'a, 'b>(&'a self) -> &'b str
+    pub fn get_error_message<'a, 'b>(&'a self) -> String
     where
         'a: 'b,
     {
-        &self.status.message
+        self.status.message.clone()
+    }
+
+    pub fn is_success(&self) -> bool {
+        let code = self.status.code.trim();
+        code == DNSPOD_RESPONSE_CODE_SUCCESS
     }
 }
 
 impl Dnspod {
+    fn get_logger(&mut self, options: &SharedProgramOptions) -> Arc<slog::Logger> {
+        if let Some(ref logger) = self.logger {
+            logger.clone()
+        } else {
+            let ret = Arc::new(options.create_logger("Dnspod"));
+            self.logger = Some(ret.clone());
+            ret
+        }
+    }
+
     fn generate_common_form(&self) -> reqwest::multipart::Form {
         let api_token_parameter = if 0 == self.token_id.len() {
             self.token.clone()
@@ -334,26 +343,24 @@ impl Dnspod {
                 }
             }
 
-            if let Some(ref logger) = self.logger {
-                if old_records.len() > 0 {
-                    debug!(logger, "Old records:");
-                    for ref log_item in &old_records {
-                        debug!(logger, "     -- {:?}", log_item);
-                    }
+            if old_records.len() > 0 {
+                debug!(self.get_logger(&options), "Old records:");
+                for ref log_item in &old_records {
+                    debug!(self.get_logger(&options), "     -- {:?}", log_item);
                 }
+            }
 
-                if pending_to_delete.len() > 0 {
-                    debug!(logger, "Pending to delete:");
-                    for ref log_item in &pending_to_delete {
-                        debug!(logger, "     -- {:?}", log_item);
-                    }
+            if pending_to_delete.len() > 0 {
+                debug!(self.get_logger(&options), "Pending to delete:");
+                for ref log_item in &pending_to_delete {
+                    debug!(self.get_logger(&options), "     -- {:?}", log_item);
                 }
+            }
 
-                if pending_to_create.len() > 0 {
-                    debug!(logger, "Pending to create:");
-                    for ref log_item in &pending_to_create {
-                        debug!(logger, "     -- {:?}", log_item);
-                    }
+            if pending_to_create.len() > 0 {
+                debug!(self.get_logger(&options), "Pending to create:");
+                for ref log_item in &pending_to_create {
+                    debug!(self.get_logger(&options), "     -- {:?}", log_item);
                 }
             }
 
@@ -371,25 +378,23 @@ impl Dnspod {
         }
         .await;
 
-        if let Some(ref logger) = self.logger {
-            let action_description: Vec<String> = recs.iter().map(|r| r.to_string()).collect();
-            if failed_count > 0 {
-                ret = 1;
-                error!(
-                    logger,
-                    "Update domain name {} to {} with {} error(s)",
-                    self.domain,
-                    action_description.join(","),
-                    failed_count
-                );
-            } else {
-                info!(
-                    logger,
-                    "Update domain name {} to {} finished",
-                    self.domain,
-                    action_description.join(",")
-                );
-            }
+        let action_description: Vec<String> = recs.iter().map(|r| r.to_string()).collect();
+        if failed_count > 0 {
+            ret = 1;
+            error!(
+                self.get_logger(&options),
+                "Update domain name {} to {} with {} error(s)",
+                self.domain,
+                action_description.join(","),
+                failed_count
+            );
+        } else {
+            info!(
+                self.get_logger(&options),
+                "Update domain name {} to {} finished",
+                self.domain,
+                action_description.join(",")
+            );
         }
 
         if ret == 0 {
@@ -400,10 +405,11 @@ impl Dnspod {
     }
 
     async fn get_records(
-        &self,
+        &mut self,
         options: SharedProgramOptions,
     ) -> Vec<Arc<DnspodGetResponseRecord>> {
         let mut ret: Vec<Arc<DnspodGetResponseRecord>> = vec![];
+        let logger = self.get_logger(&options);
 
         // Records over 100 must be request by page
         let mut page_offset: usize = 0;
@@ -420,9 +426,7 @@ impl Dnspod {
             let rsp = match cli.send().await {
                 Ok(v) => v,
                 Err(e) => {
-                    if let Some(ref logger) = self.logger {
-                        error!(logger, "Send HTTP request failed, error: {}", e);
-                    }
+                    error!(logger, "Send HTTP request failed, error: {}", e);
                     break;
                 }
             };
@@ -430,9 +434,8 @@ impl Dnspod {
             let rsp_text = match rsp.text().await {
                 Ok(v) => v,
                 Err(e) => {
-                    if let Some(ref logger) = self.logger {
-                        error!(logger, "Fetch response body failed, error: {}", e);
-                    }
+                    error!(logger, "Fetch response body failed, error: {}", e);
+
                     break;
                 }
             };
@@ -440,12 +443,10 @@ impl Dnspod {
             let result = match serde_json::from_str::<DnspodGetResponseResult>(&rsp_text) {
                 Ok(v) => v,
                 Err(e) => {
-                    if let Some(ref logger) = self.logger {
-                        error!(
-                            logger,
-                            "Parse response body failed, error: {}.\nbody: {}", e, rsp_text
-                        );
-                    }
+                    error!(
+                        logger,
+                        "Parse response body failed, error: {}.\nbody: {}", e, rsp_text
+                    );
                     break;
                 }
             };
@@ -473,18 +474,20 @@ impl Dnspod {
     }
 
     async fn remove_records(
-        &self,
+        &mut self,
         options: SharedProgramOptions,
         pending_to_delete: Vec<Arc<DnspodGetResponseRecord>>,
     ) -> i32 {
         let mut ret = 0;
         // Delete records no more need
         let delete_url = String::from("https://dnsapi.cn/Record.Remove");
+        let logger = self.get_logger(&options);
         for ref old_record in pending_to_delete {
             let form = self
                 .generate_common_form()
                 .text("record_id", old_record.id.clone());
 
+            let mut error_message: Option<String> = Option::None;
             match options
                 .http(HttpMethod::POST, &delete_url)
                 .multipart(form)
@@ -493,7 +496,7 @@ impl Dnspod {
             {
                 Ok(rsp) => match rsp.json::<DnspodResponseResult>().await {
                     Ok(res) => {
-                        if let Some(ref logger) = self.logger {
+                        if res.is_success() {
                             debug!(
                                 logger,
                                 "Delete {} for {} {}.",
@@ -501,30 +504,21 @@ impl Dnspod {
                                 self.domain,
                                 res.get_error_message()
                             );
+                        } else {
+                            error_message = Some(res.get_error_message());
                         }
                     }
-                    Err(e) => {
-                        ret += 1;
-                        if let Some(ref logger) = self.logger {
-                            error!(
-                                logger,
-                                "Delete {} for {} failed, error: {}",
-                                old_record.name,
-                                self.domain,
-                                e
-                            );
-                        }
-                    }
+                    Err(e) => error_message = Some(format!("{}", e)),
                 },
-                Err(e) => {
-                    ret += 1;
-                    if let Some(ref logger) = self.logger {
-                        error!(
-                            logger,
-                            "Delete {} for {} failed, error: {}", old_record.name, self.domain, e
-                        );
-                    }
-                }
+                Err(e) => error_message = Some(format!("{}", e)),
+            }
+
+            if let Some(err_msg) = error_message {
+                ret += 1;
+                error!(
+                    logger,
+                    "Delete {} for {} failed, error: {}", old_record.name, self.domain, err_msg
+                );
             }
         }
 
@@ -532,12 +526,14 @@ impl Dnspod {
     }
 
     async fn create_records(
-        &self,
+        &mut self,
         options: SharedProgramOptions,
         pending_to_create: Vec<Arc<DnspodRecordAction>>,
     ) -> i32 {
         let mut ret = 0;
         let create_url = String::from("https://dnsapi.cn/Record.Create");
+
+        let logger = self.get_logger(&options);
         for new_record_action in pending_to_create {
             let new_record = new_record_action.record.clone();
             let form = self
@@ -549,6 +545,8 @@ impl Dnspod {
                 .text("mx", new_record.mx.clone())
                 .text("ttl", new_record.ttl.clone());
 
+            let mut error_message: Option<String> = Option::None;
+
             match options
                 .http(HttpMethod::POST, &create_url)
                 .multipart(form)
@@ -557,7 +555,7 @@ impl Dnspod {
             {
                 Ok(rsp) => match rsp.json::<DnspodResponseResult>().await {
                     Ok(res) => {
-                        if let Some(ref logger) = self.logger {
+                        if res.is_success() {
                             debug!(
                                 logger,
                                 "Create {} for {} {}.",
@@ -565,33 +563,24 @@ impl Dnspod {
                                 self.domain,
                                 res.get_error_message()
                             );
+                        } else {
+                            error_message = Some(res.get_error_message());
                         }
                     }
-                    Err(e) => {
-                        ret += 1;
-                        if let Some(ref logger) = self.logger {
-                            error!(
-                                logger,
-                                "Create {} for {} failed, error: {}",
-                                new_record.sub_domain,
-                                self.domain,
-                                e
-                            );
-                        }
-                    }
+                    Err(e) => error_message = Some(format!("{}", e)),
                 },
-                Err(e) => {
-                    ret += 1;
-                    if let Some(ref logger) = self.logger {
-                        error!(
-                            logger,
-                            "Create {} for {} failed, error: {}",
-                            new_record.sub_domain,
-                            self.domain,
-                            e
-                        );
-                    }
-                }
+                Err(e) => error_message = Some(format!("{}", e)),
+            }
+
+            if let Some(err_msg) = error_message {
+                ret += 1;
+                error!(
+                    logger,
+                    "Create {} for {} failed, error: {}",
+                    new_record.sub_domain,
+                    self.domain,
+                    err_msg
+                );
             }
         }
 
