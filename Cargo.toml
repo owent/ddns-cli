@@ -2,7 +2,7 @@
 [package]
 authors = ["owent <admin@owent.net>"]
 categories = ["network-programming", "web-programming::http-client"]
-description = "ddns client for cloudflare"
+description = "ddns client for cloudflare and dnspod"
 documentation = "https://github.com/owt5008137/ddns-cli"
 edition = "2018"
 homepage = "https://crates.io/crates/ddns-cli"

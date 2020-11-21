@@ -47,7 +47,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --verbose --target ${{ matrix.target }}
+          args: --release --jobs 2 --verbose --target ${{ matrix.target }}
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
@@ -148,7 +148,7 @@ jobs:
         run: cargo install cross
       - name: Cross Build
         run: |
-            cross build --target ${{ matrix.target }} --release --verbose ;
+            cross build --target ${{ matrix.target }} --release --jobs 2 --verbose ;
       - name: Prepare package
         shell: bash
         if: ${{ contains(github.ref, 'refs/tags/') }}

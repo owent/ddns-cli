@@ -37,7 +37,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --verbose --target ${{ matrix.target }}
+          args: --release --jobs 2 --verbose --target ${{ matrix.target }}
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:

@@ -28,9 +28,9 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install nightly
+      - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -50,7 +50,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo build --features with-vcpkg --release --verbose --target ${{ matrix.target }}
+          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo build --jobs 2 --features with-vcpkg --release --verbose --target ${{ matrix.target }}
       - name: Run tests
         shell: bash
         run: |
