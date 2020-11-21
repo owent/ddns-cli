@@ -1,13 +1,15 @@
 # DDNS client
 
-|                           | [Linux+OSX][linux-link] | [Windows MSVC+GNU][windows-link] |
-|:-------------------------:|:-----------------------:|:--------------------------------:|
-| Build & Publish           | ![linux-badge]          | ![windows-badge]                 |
+|                           |   [Linux][linux-link]   |     [Windows][windows-link]      |     [macOS][macos-link]    |
+|:-------------------------:|:-----------------------:|:--------------------------------:|:--------------------------:|
+| Build & Publish           | ![linux-badge]          | ![windows-badge]                 | ![macos-badge]             |
 
-[linux-badge]: https://travis-ci.org/owt5008137/ddns-cli.svg?branch=master "Travis build status"
-[linux-link]:  https://travis-ci.org/owt5008137/ddns-cli "Travis build status"
-[windows-badge]: https://ci.appveyor.com/api/projects/status/ht5pks682ehe2vkt?svg=true "AppVeyor build status"
-[windows-link]:  https://ci.appveyor.com/project/owt5008137/ddns-cli "AppVeyor build status"
+[linux-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20Linux/badge.svg "Linux build status"
+[linux-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+Linux%22 "Linux build status"
+[windows-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20Windows/badge.svg "Windows build status"
+[windows-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+Windows%22 "Windows build status"
+[macos-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20macOS/badge.svg "macOS build status"
+[macos-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+macOS%22 "macOS build status"
 
 Docker: ```docker.io/owt5008137/ddns-cli```
 

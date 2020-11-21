@@ -47,7 +47,7 @@ jobs:
           args: --release --verbose --target ${{ matrix.target }}
       - name: Prepare package
         shell: bash
-        if: ${{ contains(github.ref, "refs/tags/") }}
+        if: ${{ contains(github.ref, 'refs/tags/') }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           mkdir -p bin;
@@ -62,11 +62,11 @@ jobs:
           cd "$GITHUB_WORKSPACE" ;
 
       - uses: xresloader/upload-to-github-release@master
-        if: ${{ contains(github.ref, "refs/tags/") }}
+        if: ${{ contains(github.ref, 'refs/tags/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          file: "target/${{ matrix.target }}/release.tar.gz"
+          file: "target/${{ matrix.target }}/release/${{ matrix.target }}.tar.gz"
           tags: true
           draft: false
           prerelease: false
@@ -74,7 +74,7 @@ jobs:
 
       - name: Update docker
         shell: bash
-        if: ${{ contains(github.ref, "refs/tags/") }}
+        if: ${{ contains(github.ref, 'refs/tags/') }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           which docker || true;
@@ -142,7 +142,7 @@ jobs:
             cross build --target ${{ matrix.target }} --release --verbose ;
       - name: Prepare package
         shell: bash
-        if: ${{ contains(github.ref, "refs/tags/") }}
+        if: ${{ contains(github.ref, 'refs/tags/') }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           mkdir -p bin;
@@ -154,12 +154,13 @@ jobs:
             cp -f ddns-cli* bin/ ;
           fi
           tar -zcvf ${{ matrix.target }}.tar.gz bin ;
+          cd "$GITHUB_WORKSPACE" ;
       - uses: xresloader/upload-to-github-release@master
-        if: ${{ contains(github.ref, "refs/tags/") }}
+        if: ${{ contains(github.ref, 'refs/tags/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          file: "target/${{ matrix.target }}/release.tar.gz"
+          file: "target/${{ matrix.target }}/release/${{ matrix.target }}.tar.gz"
           tags: true
           draft: false
           prerelease: false

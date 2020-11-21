@@ -26,6 +26,8 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          default: true
           override: true
       - name: Install OpenSSL
         shell: bash
@@ -45,3 +47,24 @@ jobs:
         shell: bash
         run: |
           env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo test --features with-vcpkg --release --verbose --target ${{ matrix.target }}
+      - name: Prepare package
+        shell: pwsh
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        run: |
+          cd "$ENV:GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          New-Item -Force -ItemType Directory bin ;
+          Copy-Item -Force ddns-cli.exe bin/ ;
+          if ( Test-Path "${{ matrix.target }}.zip" ) { Remove-Item -Force "${{ matrix.target }}.zip" }
+          Compress-Archive -DestinationPath "${{ matrix.target }}.zip" -Path bin
+          cd "$ENV:GITHUB_WORKSPACE" ;
+      - uses: xresloader/upload-to-github-release@master
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "target/${{ matrix.target }}/release/${{ matrix.target }}.zip"
+          tags: true
+          draft: false
+          prerelease: false
+          overwrite: true
+

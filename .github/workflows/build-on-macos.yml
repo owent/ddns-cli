@@ -35,3 +35,29 @@ jobs:
         with:
           command: test
           args: --release --verbose --target ${{ matrix.target }}
+      - name: Prepare package
+        shell: bash
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        run: |
+          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          mkdir -p bin;
+          if [[ -e ddns-cli ]]; then
+            cp -f ddns-cli bin/ddns-cli ;
+          elif [[ -e "ddns-cli.exe" ]]; then
+            cp -f ddns-cli.exe bin/ddns-cli.exe ;
+          else
+            cp -f ddns-cli* bin/ ;
+          fi
+          tar -zcvf ${{ matrix.target }}.tar.gz bin ;
+          cd "$GITHUB_WORKSPACE" ;
+      - uses: xresloader/upload-to-github-release@master
+        if: ${{ contains(github.ref, 'refs/tags/') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "target/${{ matrix.target }}/release/${{ matrix.target }}.tar.gz"
+          tags: true
+          draft: false
+          prerelease: false
+          overwrite: true
+
