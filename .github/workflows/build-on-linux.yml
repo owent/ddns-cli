@@ -34,7 +34,6 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
@@ -80,7 +79,7 @@ jobs:
           prerelease: false
           overwrite: true
 
-      - name: Update docker
+      - name: Update docker and cargo
         shell: bash
         if: ${{ contains(github.ref, 'refs/tags/') }}
         run: |
@@ -94,6 +93,8 @@ jobs:
           docker push docker.io/owt5008137/ddns-cli:latest ;
           docker push docker.io/owt5008137/ddns-cli:$TAG_NAME ;
           cd "$GITHUB_WORKSPACE" ;
+          echo "${{ secrets.CARGO_TOKEN }}" | cargo login ;
+          cargo publish --allow-dirty ;
   cross_build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
