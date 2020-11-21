@@ -193,11 +193,8 @@ struct DnspodResponseResult {
 }
 
 impl DnspodResponseResult {
-    pub fn get_error_message<'a, 'b>(&'a self) -> String
-    where
-        'a: 'b,
-    {
-        self.status.message.clone()
+    pub fn get_error_message<'a>(&'a self) -> &'a str {
+        &self.status.message
     }
 
     pub fn is_success(&self) -> bool {
@@ -487,29 +484,23 @@ impl Dnspod {
                 .generate_common_form()
                 .text("record_id", old_record.id.clone());
 
-            let mut error_message: Option<String> = Option::None;
+            let error_message;
             match options
                 .http(HttpMethod::POST, &delete_url)
                 .multipart(form)
                 .send()
                 .await
             {
-                Ok(rsp) => match rsp.json::<DnspodResponseResult>().await {
-                    Ok(res) => {
-                        if res.is_success() {
-                            debug!(
-                                logger,
-                                "Delete {} for {} {}.",
-                                old_record.name,
-                                self.domain,
-                                res.get_error_message()
-                            );
-                        } else {
-                            error_message = Some(res.get_error_message());
+                Ok(rsp) => {
+                    debug!(logger, "====== Crash checkpoint 1");
+                    match rsp.json::<DnspodResponseResult>().await {
+                        Ok(res) => {
+                            error_message =
+                                self.check_result(&logger, "Delete", &old_record.name, res)
                         }
+                        Err(e) => error_message = Some(format!("{}", e)),
                     }
-                    Err(e) => error_message = Some(format!("{}", e)),
-                },
+                }
                 Err(e) => error_message = Some(format!("{}", e)),
             }
 
@@ -545,30 +536,23 @@ impl Dnspod {
                 .text("mx", new_record.mx.clone())
                 .text("ttl", new_record.ttl.clone());
 
-            let mut error_message: Option<String> = Option::None;
-
+            let error_message;
             match options
                 .http(HttpMethod::POST, &create_url)
                 .multipart(form)
                 .send()
                 .await
             {
-                Ok(rsp) => match rsp.json::<DnspodResponseResult>().await {
-                    Ok(res) => {
-                        if res.is_success() {
-                            debug!(
-                                logger,
-                                "Create {} for {} {}.",
-                                new_record.sub_domain,
-                                self.domain,
-                                res.get_error_message()
-                            );
-                        } else {
-                            error_message = Some(res.get_error_message());
+                Ok(rsp) => {
+                    debug!(logger, "====== Crash checkpoint 1");
+                    match rsp.json::<DnspodResponseResult>().await {
+                        Ok(res) => {
+                            error_message =
+                                self.check_result(&logger, "Create", &new_record.sub_domain, res)
                         }
+                        Err(e) => error_message = Some(format!("{}", e)),
                     }
-                    Err(e) => error_message = Some(format!("{}", e)),
-                },
+                }
                 Err(e) => error_message = Some(format!("{}", e)),
             }
 
@@ -585,5 +569,27 @@ impl Dnspod {
         }
 
         ret
+    }
+
+    fn check_result(
+        &self,
+        logger: &Arc<slog::Logger>,
+        action: &str,
+        sub_domain: &String,
+        res: DnspodResponseResult,
+    ) -> Option<String> {
+        if res.is_success() {
+            debug!(
+                logger,
+                "{} {} for {} {}.",
+                action,
+                sub_domain,
+                self.domain,
+                res.get_error_message()
+            );
+            None
+        } else {
+            Some(String::from(res.get_error_message()))
+        }
     }
 }

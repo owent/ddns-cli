@@ -5,8 +5,6 @@ use std::alloc::System;
 #[global_allocator]
 static GLOBAL: System = System;
 
-use std::process;
-
 extern crate bytes;
 extern crate hex;
 extern crate regex;
@@ -51,8 +49,7 @@ fn register_drivers() -> Vec<Box<dyn driver::Driver>> {
     ]
 }
 
-#[async_std::main]
-async fn main() {
+async fn real_main() -> i32 {
     let mut detectors = register_detectors();
     let mut drivers = register_drivers();
     let mut app = option::app();
@@ -93,7 +90,13 @@ async fn main() {
         }
     }
 
-    if exit_code > 0 {
-        process::exit(exit_code);
+    exit_code
+}
+
+fn main() {
+    let exit_code = async_std::task::block_on(async { real_main().await });
+
+    if exit_code != 0 {
+        std::process::exit(exit_code);
     }
 }

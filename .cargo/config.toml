@@ -1,0 +1,4 @@
+# @see https://doc.rust-lang.org/cargo/reference/config.html
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-Ctarget-feature=+crt-static"]

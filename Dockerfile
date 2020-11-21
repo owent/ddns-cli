@@ -2,6 +2,7 @@ FROM docker.io/alpine:latest
 
 LABEL maintainer "OWenT <admin@owent.net>"
 
-COPY "./bin/ddns-cli" "/usr/local/bin/"
+RUN mkdir -p "/usr/local/ddns-cli/bin"
+COPY "./bin/ddns-cli" "/usr/local/ddns-cli/bin"
 
-CMD ["/usr/local/bin/ddns-cli"]
+CMD ["/usr/local/ddns-cli/bin/ddns-cli"]
