@@ -17,7 +17,7 @@ jobs:
       PKG_CONFIG_ALL_STATIC: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
       - name: Cache cargo modules
         uses: actions/cache@v2
         with:
@@ -32,11 +32,14 @@ jobs:
           target: ${{ matrix.target }}
           default: true
           override: true
-      - name: cargo build
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Cargo Release build
         uses: actions-rs/cargo@v1
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
         with:
+          use-cross: false
           command: build
-          args: --release --jobs 2 --verbose --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:

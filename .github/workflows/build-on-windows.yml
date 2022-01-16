@@ -13,22 +13,17 @@ jobs:
         rust: [stable]
         target:
           [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
-    # x86_64-pc-windows-gnu, i686-pc-windows-gnu, # Github Action has no openssl on mingw32
+    # x86_64-pc-windows-gnu, i686-pc-windows-gnu,
     runs-on: ${{ matrix.os }}
-    env:
-      VCPKGRS_DYNAMIC: 0
-      OPENSSL_STATIC: 1
-      OPENSSL_NO_VENDOR: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
       - name: Cache cargo modules
         uses: actions/cache@v2
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ${{ env.VCPKG_INSTALLATION_ROOT }}/installed
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
@@ -37,24 +32,19 @@ jobs:
           target: ${{ matrix.target }}
           default: true
           override: true
-      - name: Install OpenSSL
-        shell: bash
-        run: |
-          if [[ "${{ matrix.target }}" == "i686-pc-windows-msvc" ]] || [[ "${{ matrix.target }}" == "i686-pc-windows-gnu" ]]; then
-            vcpkg install openssl --triplet x86-windows
-            vcpkg install openssl --triplet x86-windows-static
-          else
-            vcpkg install openssl --triplet x64-windows
-            vcpkg install openssl --triplet x64-windows-static
-          fi
-      - name: Build
-        shell: bash
-        run: |
-          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo build --jobs 2 --features with-vcpkg --release --verbose --target ${{ matrix.target }}
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Cargo Release build
+        uses: actions-rs/cargo@v1
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        with:
+          use-cross: false
+          command: build
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Run tests
-        shell: bash
-        run: |
-          env VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT cargo test --features with-vcpkg --release --verbose --target ${{ matrix.target }} --bin ddns-cli
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: pwsh
         if: ${{ contains(github.ref, 'refs/tags/') }}

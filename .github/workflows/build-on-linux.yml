@@ -25,12 +25,10 @@ jobs:
           ]
     runs-on: ${{ matrix.os }}
     env:
-      VCPKGRS_DYNAMIC: 1
-      OPENSSL_STATIC: 1
       PKG_CONFIG_ALL_STATIC: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
       - name: Cache cargo modules
         uses: actions/cache@v2
         with:
@@ -43,13 +41,16 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
-          default: true
           override: true
-      - name: cargo build
+          default: true
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Cargo Release build
         uses: actions-rs/cargo@v1
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
         with:
+          use-cross: false
           command: build
-          args: --release --jobs 2 --verbose --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
@@ -136,22 +137,24 @@ jobs:
             #x86_64-sun-solaris,
           ]
     runs-on: ${{ matrix.os }}
-    env:
-      VCPKGRS_DYNAMIC: 1
-      OPENSSL_STATIC: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v2
       - name: Install nightly
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
           override: true
-      - name: Install cross
-        run: cargo install cross
-      - name: Cross Build
-        run: |
-            cross build --target ${{ matrix.target }} --release --jobs 2 --verbose ;
+          default: true
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Cargo Release build
+        uses: actions-rs/cargo@v1
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        with:
+          use-cross: true
+          command: build
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Prepare package
         shell: bash
         if: ${{ github.ref_type == 'tag' }}
