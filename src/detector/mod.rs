@@ -41,7 +41,7 @@ impl fmt::Display for Record {
 pub type DetectorResult<'a> = Result<&'a Vec<Record>, ()>;
 
 pub trait Detector {
-    fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b>;
+    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a>;
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions);
 
     fn run<'a, 'b>(

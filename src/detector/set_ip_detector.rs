@@ -22,18 +22,20 @@ impl Default for SetIpDetector {
 }
 
 impl Detector for SetIpDetector {
-    fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b> {
+    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
         app.arg(
-            Arg::with_name("ip")
+            Arg::new("ip")
                 .long("ip")
                 .value_name("IP ADDRESS")
                 .takes_value(true)
+                .multiple_values(true)
                 .help("Set ip address by command line options"),
         )
     }
 
-    fn parse_options(&mut self, matches: &ArgMatches, _: &mut SharedProgramOptions) {
+    fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
         if let Some(x) = matches.values_of("ip") {
+            let logger = options.create_logger("SetIpDetector");
             for val in x {
                 if let Ok(addr) = IpAddr::from_str(&val) {
                     let final_addr = match addr {
@@ -41,6 +43,9 @@ impl Detector for SetIpDetector {
                         IpAddr::V6(ipv6) => Record::AAAA(ipv6),
                     };
                     self.ips.push(final_addr);
+                    debug!(logger, "Add ip address {}", val);
+                } else {
+                    error!(logger, "Invalid ip address {}", val);
                 }
             }
         }

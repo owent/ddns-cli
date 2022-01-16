@@ -3,10 +3,12 @@ name: "Build On Linux"
 on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#webhook-events
   push:
     branches: # Array of patterns that match refs/heads
-      - master # Push events on master branch
-      - dev
+      - main # Push events on master branch
     tags:
       - "*"
+  pull_request:
+    branches:
+      - main
 
 jobs:
   native_build: # job id, can be any string
@@ -18,7 +20,8 @@ jobs:
         os: [ubuntu-latest]
         rust: [stable]
         target: [
-            x86_64-unknown-linux-gnu
+            x86_64-unknown-linux-gnu,
+            x86_64-unknown-linux-musl
           ]
     runs-on: ${{ matrix.os }}
     env:
@@ -54,7 +57,7 @@ jobs:
           args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: bash
-        if: ${{ contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.ref_type == 'tag' }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           mkdir -p bin;
@@ -69,7 +72,7 @@ jobs:
           cd "$GITHUB_WORKSPACE" ;
 
       - uses: xresloader/upload-to-github-release@master
-        if: ${{ contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.ref_type == 'tag' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -81,7 +84,7 @@ jobs:
 
       - name: Update docker and cargo
         shell: bash
-        if: ${{ contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.ref_type == 'tag' && matrix.target == 'x86_64-unknown-linux-musl' }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           which docker || true;
@@ -98,7 +101,7 @@ jobs:
   cross_build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
-    if: ${{ contains(github.ref, 'refs/tags/') }}
+    if: ${{ github.ref_type == 'tag' }}
     # This job runs on Linux
     strategy:
       matrix:
@@ -123,7 +126,6 @@ jobs:
             #powerpc64le-unknown-linux-gnu,
             i686-unknown-linux-gnu,
             i686-unknown-linux-musl,
-            x86_64-unknown-linux-musl,
             aarch64-linux-android,
             arm-linux-androideabi,
             armv7-linux-androideabi,
@@ -152,7 +154,7 @@ jobs:
             cross build --target ${{ matrix.target }} --release --jobs 2 --verbose ;
       - name: Prepare package
         shell: bash
-        if: ${{ contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.ref_type == 'tag' }}
         run: |
           cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
           mkdir -p bin;
@@ -166,7 +168,7 @@ jobs:
           tar -zcvf ${{ matrix.target }}.tar.gz bin ;
           cd "$GITHUB_WORKSPACE" ;
       - uses: xresloader/upload-to-github-release@master
-        if: ${{ contains(github.ref, 'refs/tags/') }}
+        if: ${{ github.ref_type == 'tag' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

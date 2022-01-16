@@ -69,9 +69,9 @@ impl GetIpByUrlDetector {
 }
 
 impl Detector for GetIpByUrlDetector {
-    fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b> {
+    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
         app.arg(
-            Arg::with_name("get-ip-by-url")
+            Arg::new("get-ip-by-url")
                 .long("get-ip-by-url")
                 .value_name("URL TO VISIT")
                 .takes_value(true)

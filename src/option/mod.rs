@@ -36,21 +36,21 @@ pub enum HttpMethod {
     HEAD,
 }
 
-pub fn app<'a, 'b>() -> App<'a, 'b> {
+pub fn app<'a>() -> App<'a> {
     App::new(crate_name!())
         .author(crate_authors!())
         .version(crate_version!())
         .about(crate_description!())
         .max_term_width(120)
         .arg(
-            Arg::with_name("version")
-                .short("v")
+            Arg::new("version")
+                .short('v')
                 .long("version")
                 .help("Show version"),
         )
         .arg(
-            Arg::with_name("timeout")
-                .short("t")
+            Arg::new("timeout")
+                .short('t')
                 .long("timeout")
                 .value_name("TIMEOUT")
                 .takes_value(true)
@@ -58,48 +58,48 @@ pub fn app<'a, 'b>() -> App<'a, 'b> {
                 .help("Set timeout in miliseconds"),
         )
         .arg(
-            Arg::with_name("insecure")
-                .short("k")
+            Arg::new("insecure")
+                .short('k')
                 .long("insecure")
                 .help("Allow connections to SSL sites without certs"),
         )
         .arg(
-            Arg::with_name("verbose")
+            Arg::new("verbose")
                 .long("verbose")
                 .help("Output verbose log"),
         )
         .arg(
-            Arg::with_name("http-user-agent")
+            Arg::new("http-user-agent")
                 .long("http-user-agent")
                 .takes_value(true)
                 .help("Set user agent for http request"),
         )
         .arg(
-            Arg::with_name("no-proxy")
+            Arg::new("no-proxy")
                 .long("no-proxy")
                 .help("Do not use any proxy"),
         )
         .arg(
-            Arg::with_name("proxy")
+            Arg::new("proxy")
                 .long("proxy")
                 .takes_value(true)
                 .help("Set http proxy(http|https|socks5|socks5h://HOST:PORT)"),
         )
         .arg(
-            Arg::with_name("proxy-username")
+            Arg::new("proxy-username")
                 .long("proxy-username")
                 .takes_value(true)
                 .help("Set proxy username fo auth"),
         )
         .arg(
-            Arg::with_name("proxy-password")
+            Arg::new("proxy-password")
                 .long("proxy-password")
                 .takes_value(true)
                 .help("Set proxy password fo auth"),
         )
 }
 
-fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
+fn generate_options<'a>(matches: &ArgMatches) -> ProgramOptions {
     let debug_log_on = Arc::new(atomic::AtomicBool::new(matches.is_present("verbose")));
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -130,11 +130,8 @@ fn generate_options<'a>(matches: &ArgMatches<'a>) -> ProgramOptions {
     }
 }
 
-pub fn parse_options<'a, 'b>(app: App<'a, 'b>) -> (ArgMatches<'a>, SharedProgramOptions)
-where
-    'a: 'b,
-{
-    let matches: ArgMatches<'a> = app.get_matches();
+pub fn parse_options<'a>(app: App<'a>) -> (ArgMatches, SharedProgramOptions) {
+    let matches: ArgMatches = app.get_matches();
     if matches.is_present("version") {
         println!("{}", crate_version!());
         process::exit(0);
@@ -144,11 +141,11 @@ where
     (matches, Arc::new(options))
 }
 
-pub fn unwraper_from_str_or<'a, T, S: AsRef<str>>(matches: &ArgMatches<'a>, name: S, def: T) -> T
+pub fn unwraper_from_str_or<'a, T, S: AsRef<str>>(matches: &ArgMatches, name: S, def: T) -> T
 where
     T: FromStr,
 {
-    if let Some(mut x) = matches.values_of(name) {
+    if let Some(mut x) = matches.values_of(name.as_ref()) {
         if let Some(val) = x.next() {
             if let Ok(ret) = val.parse::<T>() {
                 return ret;
@@ -188,11 +185,11 @@ where
     }
 }
 
-pub fn unwraper_option_or<'a, T, S: AsRef<str>>(matches: &ArgMatches<'a>, name: S, def: T) -> T
+pub fn unwraper_option_or<T, S: AsRef<str>>(matches: &ArgMatches, name: S, def: T) -> T
 where
     T: OptionValueWrapper<T>,
 {
-    if let Some(mut x) = matches.values_of(name) {
+    if let Some(mut x) = matches.values_of(name.as_ref()) {
         if let Some(val) = x.next() {
             return def.pick(val);
         }

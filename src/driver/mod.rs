@@ -17,7 +17,7 @@ pub type SharedProgramOptions = super::option::SharedProgramOptions;
 pub type HttpMethod = super::option::HttpMethod;
 
 pub trait Driver {
-    fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b>;
+    fn initialize<'a, 'b>(&mut self, app: App<'a>) -> App<'a>;
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions);
 
     fn run<'a, 'b, 'c>(

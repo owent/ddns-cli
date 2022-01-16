@@ -21,21 +21,21 @@ pub struct Cloudflare {
 }
 
 impl Driver for Cloudflare {
-    fn initialize<'a, 'b>(&mut self, app: App<'a, 'b>) -> App<'a, 'b> {
+    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
         app.arg(
-            Arg::with_name("cf-zone-id")
+            Arg::new("cf-zone-id")
                 .long("cf-zone-id")
                 .value_name("ZONE_ID")
                 .takes_value(true)
                 .help("Set zone id of cloudflare API, you can get it from your domain zone"),
         ).arg(
-            Arg::with_name("cf-token")
+            Arg::new("cf-token")
                 .long("cf-token")
                 .value_name("TOKEN")
                 .takes_value(true)
                 .help("Set token of cloudflare API, you can get it from https://dash.cloudflare.com/profile/api-tokens"),
         ).arg(
-            Arg::with_name("cf-domain")
+            Arg::new("cf-domain")
                 .long("cf-domain")
                 .value_name("DOMAIN")
                 .takes_value(true)
