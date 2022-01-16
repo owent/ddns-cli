@@ -11,7 +11,7 @@ on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#web
       - main
 
 jobs:
-  native_build: # job id, can be any string
+  build: # job id, can be any string
     # Job name is Build And Publish
     name: Build
     # This job runs on Linux
@@ -21,94 +21,7 @@ jobs:
         rust: [stable]
         target: [
             x86_64-unknown-linux-gnu,
-            x86_64-unknown-linux-musl
-          ]
-    runs-on: ${{ matrix.os }}
-    env:
-      PKG_CONFIG_ALL_STATIC: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Cache cargo modules
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          override: true
-          default: true
-          components: "rustfmt, clippy, cargo, rust-docs"
-      - name: Cargo Release build
-        uses: actions-rs/cargo@v1
-        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
-        with:
-          use-cross: false
-          command: build
-          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
-      - name: Prepare package
-        shell: bash
-        if: ${{ github.ref_type == 'tag' }}
-        run: |
-          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
-          mkdir -p bin;
-          if [[ -e ddns-cli ]]; then
-            cp -f ddns-cli bin/ddns-cli ;
-          elif [[ -e "ddns-cli.exe" ]]; then
-            cp -f ddns-cli.exe bin/ddns-cli.exe ;
-          else
-            cp -f ddns-cli* bin/ ;
-          fi
-          tar -zcvf ${{ matrix.target }}.tar.gz bin ;
-          cd "$GITHUB_WORKSPACE" ;
-
-      - uses: xresloader/upload-to-github-release@master
-        if: ${{ github.ref_type == 'tag' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          file: "target/${{ matrix.target }}/release/${{ matrix.target }}.tar.gz"
-          tags: true
-          draft: false
-          prerelease: false
-          overwrite: true
-
-      - name: Update docker and cargo
-        shell: bash
-        if: ${{ github.ref_type == 'tag' && matrix.target == 'x86_64-unknown-linux-musl' }}
-        run: |
-          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
-          which docker || true;
-          cp -f ../../../Dockerfile ./ ;
-          TAG_NAME="$(echo "${{ github.ref }}" | awk 'match($0, /refs\/tags\/(.+)/, tag_name) {print tag_name[1]}')";
-          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "owt5008137" --password-stdin docker.io
-          docker build --force-rm --tag docker.io/owt5008137/ddns-cli:latest -f Dockerfile . ;
-          docker tag docker.io/owt5008137/ddns-cli:latest docker.io/owt5008137/ddns-cli:$TAG_NAME ;
-          docker push docker.io/owt5008137/ddns-cli:latest ;
-          docker push docker.io/owt5008137/ddns-cli:$TAG_NAME ;
-          cd "$GITHUB_WORKSPACE" ;
-          echo "${{ secrets.CARGO_TOKEN }}" | cargo login ;
-          cargo publish --allow-dirty ;
-  cross_build: # job id, can be any string
-    # Job name is Build And Publish
-    name: Build
-    if: ${{ github.ref_type == 'tag' }}
-    # This job runs on Linux
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        rust: [stable]
-        target: [
+            x86_64-unknown-linux-musl,
             aarch64-unknown-linux-gnu,
             aarch64-unknown-linux-musl,
             arm-unknown-linux-gnueabi,
@@ -140,7 +53,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Install nightly
+      - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -149,6 +62,19 @@ jobs:
           default: true
           components: "rustfmt, clippy, cargo, rust-docs"
       - name: Cargo Release build
+        uses: actions-rs/cargo@v1
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        with:
+          use-cross: false
+          command: build
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        with:
+          command: test
+          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
+      - name: Cross Release build
         uses: actions-rs/cargo@v1
         if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
         with:
@@ -180,3 +106,19 @@ jobs:
           draft: false
           prerelease: false
           overwrite: true
+      - name: Update docker and cargo
+        shell: bash
+        if: ${{ github.ref_type == 'tag' && matrix.target == 'x86_64-unknown-linux-musl' }}
+        run: |
+          cd "$GITHUB_WORKSPACE/target/${{ matrix.target }}/release/" ;
+          which docker || true;
+          cp -f ../../../Dockerfile ./ ;
+          TAG_NAME="$(echo "${{ github.ref }}" | awk 'match($0, /refs\/tags\/(.+)/, tag_name) {print tag_name[1]}')";
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "owt5008137" --password-stdin docker.io
+          docker build --force-rm --tag docker.io/owt5008137/ddns-cli:latest -f Dockerfile . ;
+          docker tag docker.io/owt5008137/ddns-cli:latest docker.io/owt5008137/ddns-cli:$TAG_NAME ;
+          docker push docker.io/owt5008137/ddns-cli:latest ;
+          docker push docker.io/owt5008137/ddns-cli:$TAG_NAME ;
+          cd "$GITHUB_WORKSPACE" ;
+          echo "${{ secrets.CARGO_TOKEN }}" | cargo login ;
+          cargo publish --allow-dirty ;
