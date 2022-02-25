@@ -1,6 +1,11 @@
 CHANGELOG
 ============
 
+v0.2.2
+----------
+
+1. Allow to ignore some ip of `--ip [ip...]`
+
 v0.2.1
 ----------
 
