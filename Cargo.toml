@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 name = "ddns-cli"
 readme = "README.md"
 repository = "https://github.com/owt5008137/ddns-cli"
-version = "0.2.2"
+version = "0.2.3"
 
 [[bin]]
 name = "ddns-cli"

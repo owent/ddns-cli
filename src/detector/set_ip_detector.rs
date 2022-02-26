@@ -76,6 +76,12 @@ impl Detector for SetIpDetector {
     }
 
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
+        self.ignore_link_local = matches.is_present("ip-no-link-local");
+        self.ignore_shared = matches.is_present("ip-no-shared");
+        self.ignore_loopback = matches.is_present("ip-no-loopback");
+        self.ignore_private = matches.is_present("ip-no-private");
+        self.ignore_multicast = matches.is_present("ip-no-multicast");
+
         if let Some(x) = matches.values_of("ip") {
             let logger = options.create_logger("SetIpDetector");
             for val in x {
