@@ -1,0 +1,46 @@
+[[target]]
+target = "aarch64-linux-android"
+os = "ubuntu-latest"
+cpp = true
+dylib = true
+std = true
+run = true
+
+[[target]]
+target = "arm-linux-androideabi"
+os = "ubuntu-latest"
+cpp = true
+dylib = true
+std = true
+run = true
+
+[[target]]
+target = "armv7-linux-androideabi"
+os = "ubuntu-latest"
+cpp = true
+dylib = true
+std = true
+run = true
+
+[[target]]
+target = "thumbv7neon-linux-androideabi"
+os = "ubuntu-latest"
+cpp = true
+std = true
+run = true
+
+[[target]]
+target = "i686-linux-android"
+os = "ubuntu-latest"
+cpp = true
+dylib = true
+std = true
+run = true
+
+[[target]]
+target = "x86_64-linux-android"
+os = "ubuntu-latest"
+cpp = true
+dylib = true
+std = true
+run = true
