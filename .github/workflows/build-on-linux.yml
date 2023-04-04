@@ -74,9 +74,12 @@ jobs:
         with:
           command: test
           args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
+      - name: Install Cross
+        uses: taiki-e/install-action@cross
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
       - name: Cross Release build
         uses: actions-rs/cargo@v1
-        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
         with:
           use-cross: true
           command: build
