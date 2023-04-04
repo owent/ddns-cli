@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use futures::future::BoxFuture;
 
 extern crate clap;
-use clap::{App, ArgMatches};
+use crate::clap::{ArgMatches, Command};
 
 mod get_ip_by_url_detector;
 mod set_ip_detector;
@@ -41,7 +41,7 @@ impl fmt::Display for Record {
 pub type DetectorResult<'a> = Result<&'a Vec<Record>, ()>;
 
 pub trait Detector {
-    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a>;
+    fn initialize(&mut self, app: Command) -> Command;
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions);
 
     fn run<'a, 'b>(

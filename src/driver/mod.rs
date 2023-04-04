@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 
 extern crate clap;
-use clap::{App, ArgMatches};
+use clap::{ArgMatches, Command};
 
 use super::detector;
 
@@ -17,7 +17,7 @@ pub type SharedProgramOptions = super::option::SharedProgramOptions;
 pub type HttpMethod = super::option::HttpMethod;
 
 pub trait Driver {
-    fn initialize<'a, 'b>(&mut self, app: App<'a>) -> App<'a>;
+    fn initialize(&mut self, app: Command) -> Command;
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions);
 
     fn run<'a, 'b, 'c>(

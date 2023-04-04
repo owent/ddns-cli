@@ -7,7 +7,7 @@ use futures::future::{self, BoxFuture, FutureExt};
 use serde::{Deserialize, Serialize};
 
 extern crate clap;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 
 use super::super::option;
 use super::{Driver, DriverResult, Record};
@@ -27,36 +27,31 @@ pub struct Dnspod {
 static DNSPOD_RESPONSE_CODE_SUCCESS: &str = "1";
 
 impl Driver for Dnspod {
-    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
+    fn initialize(&mut self, app: Command) -> Command {
         app.arg(
             Arg::new("dp-domain-id")
                 .long("dp-domain-id")
                 .value_name("DOMAIN ID")
-                .takes_value(true)
                 .help("Set domain id of dnspod API, --dp-domain-id or --dp-domain must be set when using dnspod"),
         ).arg(
             Arg::new("dp-domain")
                 .long("dp-domain")
                 .value_name("DOMAIN")
-                .takes_value(true)
                 .help("Set domain of dnspod API, --dp-domain-id or --dp-domain must be set when using dnspod"),
         ).arg(
             Arg::new("dp-name")
                 .long("dp-name")
                 .value_name("SUB DOMAIN NAME")
-                .takes_value(true)
                 .help("Set sub domain name of dnspod API, using @ if it's not set"),
         ).arg(
             Arg::new("dp-token")
                 .long("dp-token")
                 .value_name("TOKEN")
-                .takes_value(true)
                 .help("Set token of dnspod API, you can get it from https://console.dnspod.cn/account/token"),
         ).arg(
             Arg::new("dp-token-id")
                 .long("dp-token-id")
                 .value_name("TOKEN_ID")
-                .takes_value(true)
                 .help("Set token ID of dnspod API, you can get it from https://console.dnspod.cn/account/token"),
         )
     }

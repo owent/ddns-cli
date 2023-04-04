@@ -11,13 +11,12 @@ jobs:
       matrix:
         os: [windows-latest]
         rust: [stable]
-        target:
-          [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
+        target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
     # x86_64-pc-windows-gnu, i686-pc-windows-gnu,
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Cache cargo modules
         uses: actions/cache@v2
         with:
@@ -65,4 +64,3 @@ jobs:
           draft: false
           prerelease: false
           overwrite: true
-

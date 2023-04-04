@@ -4,12 +4,12 @@
 |:-------------------------:|:-----------------------:|:--------------------------------:|:--------------------------:|
 | Build & Publish           | ![linux-badge]          | ![windows-badge]                 | ![macos-badge]             |
 
-[linux-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20Linux/badge.svg "Linux build status"
-[linux-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+Linux%22 "Linux build status"
-[windows-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20Windows/badge.svg "Windows build status"
-[windows-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+Windows%22 "Windows build status"
-[macos-badge]: https://github.com/owt5008137/ddns-cli/workflows/Build%20On%20macOS/badge.svg "macOS build status"
-[macos-link]:  https://github.com/owt5008137/ddns-cli/actions?query=workflow%3A%22Build+On+macOS%22 "macOS build status"
+[linux-badge]: https://github.com/owent/ddns-cli/workflows/Build%20On%20Linux/badge.svg "Linux build status"
+[linux-link]:  https://github.com/owent/ddns-cli/actions?query=workflow%3A%22Build+On+Linux%22 "Linux build status"
+[windows-badge]: https://github.com/owent/ddns-cli/workflows/Build%20On%20Windows/badge.svg "Windows build status"
+[windows-link]:  https://github.com/owent/ddns-cli/actions?query=workflow%3A%22Build+On+Windows%22 "Windows build status"
+[macos-badge]: https://github.com/owent/ddns-cli/workflows/Build%20On%20macOS/badge.svg "macOS build status"
+[macos-link]:  https://github.com/owent/ddns-cli/actions?query=workflow%3A%22Build+On+macOS%22 "macOS build status"
 
 Docker: [```docker.io/owt5008137/ddns-cli```][4]
 

@@ -4,7 +4,7 @@ use futures::future::{self, BoxFuture, FutureExt};
 use serde::{Deserialize, Serialize};
 
 extern crate clap;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 use super::super::option;
 use super::{Driver, DriverResult, Record};
@@ -21,24 +21,23 @@ pub struct Cloudflare {
 }
 
 impl Driver for Cloudflare {
-    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
+    fn initialize(&mut self, app: Command) -> Command {
         app.arg(
             Arg::new("cf-zone-id")
                 .long("cf-zone-id")
                 .value_name("ZONE_ID")
-                .takes_value(true)
                 .help("Set zone id of cloudflare API, you can get it from your domain zone"),
         ).arg(
             Arg::new("cf-token")
                 .long("cf-token")
                 .value_name("TOKEN")
-                .takes_value(true)
                 .help("Set token of cloudflare API, you can get it from https://dash.cloudflare.com/profile/api-tokens"),
         ).arg(
             Arg::new("cf-domain")
                 .long("cf-domain")
                 .value_name("DOMAIN")
-                .takes_value(true)
+                .num_args(1..)
+                .action(ArgAction::Append)
                 .help("Add domain to update using cloudflare API"),
         )
     }
@@ -46,11 +45,15 @@ impl Driver for Cloudflare {
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
         self.zone_id = option::unwraper_option_or(&matches, "cf-zone-id", String::default());
         self.token = option::unwraper_option_or(&matches, "cf-token", String::default());
-        if let Some(x) = matches.values_of("cf-domain") {
-            self.domains.extend(x.map(|s| String::from(s)));
-        }
-        if !self.zone_id.is_empty() && !self.token.is_empty() && !self.domains.is_empty() {
+        if !self.zone_id.is_empty() && !self.token.is_empty() {
             self.logger = Some(options.create_logger("Cloudflare"));
+
+            self.domains.extend(option::unwraper_multiple_values(
+                &matches,
+                "cf-domain",
+                self.logger.as_ref().unwrap(),
+                "domain",
+            ));
         }
     }
 

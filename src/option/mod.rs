@@ -6,7 +6,7 @@ use std::sync::{atomic, Arc};
 use std::time::Duration;
 
 extern crate clap;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 use slog;
 use slog::Drain;
@@ -36,24 +36,25 @@ pub enum HttpMethod {
     HEAD,
 }
 
-pub fn app<'a>() -> App<'a> {
-    App::new(crate_name!())
+pub fn app<'a>() -> Command {
+    let matches = command!();
+    matches
         .author(crate_authors!())
         .version(crate_version!())
         .about(crate_description!())
         .max_term_width(120)
-        .arg(
-            Arg::new("version")
-                .short('v')
-                .long("version")
-                .help("Show version"),
-        )
+        // .arg(
+        //     Arg::new("version")
+        //         .short('v')
+        //         .long("version")
+        //         .action(ArgAction::SetTrue)
+        //         .help("Show version"),
+        // )
         .arg(
             Arg::new("timeout")
                 .short('t')
                 .long("timeout")
                 .value_name("TIMEOUT")
-                .takes_value(true)
                 .default_value("60000")
                 .help("Set timeout in miliseconds"),
         )
@@ -61,17 +62,18 @@ pub fn app<'a>() -> App<'a> {
             Arg::new("insecure")
                 .short('k')
                 .long("insecure")
+                .action(ArgAction::SetTrue)
                 .help("Allow connections to SSL sites without certs"),
         )
         .arg(
             Arg::new("verbose")
                 .long("verbose")
+                .action(ArgAction::SetTrue)
                 .help("Output verbose log"),
         )
         .arg(
             Arg::new("http-user-agent")
                 .long("http-user-agent")
-                .takes_value(true)
                 .help("Set user agent for http request"),
         )
         .arg(
@@ -82,25 +84,35 @@ pub fn app<'a>() -> App<'a> {
         .arg(
             Arg::new("proxy")
                 .long("proxy")
-                .takes_value(true)
                 .help("Set http proxy(http|https|socks5|socks5h://HOST:PORT)"),
         )
         .arg(
             Arg::new("proxy-username")
                 .long("proxy-username")
-                .takes_value(true)
                 .help("Set proxy username fo auth"),
         )
         .arg(
             Arg::new("proxy-password")
                 .long("proxy-password")
-                .takes_value(true)
                 .help("Set proxy password fo auth"),
         )
 }
 
-fn generate_options<'a>(matches: &ArgMatches) -> ProgramOptions {
-    let debug_log_on = Arc::new(atomic::AtomicBool::new(matches.is_present("verbose")));
+pub fn unwraper_flag<S>(matches: &ArgMatches, name: S) -> bool
+where
+    S: AsRef<str>,
+{
+    if let Ok(rx) = matches.try_get_one::<bool>(name.as_ref()) {
+        if let Some(x) = rx {
+            return *x;
+        }
+    }
+
+    false
+}
+
+fn generate_options(matches: &ArgMatches) -> ProgramOptions {
+    let debug_log_on = Arc::new(atomic::AtomicBool::new(unwraper_flag(&matches, "verbose")));
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = RuntimeLevelFilter {
@@ -116,23 +128,23 @@ fn generate_options<'a>(matches: &ArgMatches) -> ProgramOptions {
 
     ProgramOptions {
         timeout: Duration::from_millis(unwraper_from_str_or(matches, "timeout", 60000)),
-        insecure: matches.is_present("insecure"),
+        insecure: unwraper_flag(&matches, "insecure"),
         logger: slog::Logger::root(drain, o!()),
         http_user_agent: unwraper_option_or(
             &matches,
             "http-user-agent",
             format!("{}/{}", crate_name!(), crate_version!()),
         ),
-        no_proxy: matches.is_present("no-proxy"),
+        no_proxy: unwraper_flag(&matches, "no-proxy"),
         proxy_address: unwraper_option_or(&matches, "proxy", String::default()),
         proxy_username: unwraper_option_or(&matches, "proxy-username", String::default()),
         proxy_password: unwraper_option_or(&matches, "proxy-password", String::default()),
     }
 }
 
-pub fn parse_options<'a>(app: App<'a>) -> (ArgMatches, SharedProgramOptions) {
+pub fn parse_options(app: Command) -> (ArgMatches, SharedProgramOptions) {
     let matches: ArgMatches = app.get_matches();
-    if matches.is_present("version") {
+    if unwraper_flag(&matches, "version") {
         println!("{}", crate_version!());
         process::exit(0);
     }
@@ -141,14 +153,19 @@ pub fn parse_options<'a>(app: App<'a>) -> (ArgMatches, SharedProgramOptions) {
     (matches, Arc::new(options))
 }
 
-pub fn unwraper_from_str_or<'a, T, S: AsRef<str>>(matches: &ArgMatches, name: S, def: T) -> T
+pub fn unwraper_from_str_or<T, S>(matches: &ArgMatches, name: S, def: T) -> T
 where
     T: FromStr,
+    S: AsRef<str>,
 {
-    if let Some(mut x) = matches.values_of(name.as_ref()) {
-        if let Some(val) = x.next() {
-            if let Ok(ret) = val.parse::<T>() {
-                return ret;
+    if let Ok(rx) = matches.try_get_raw(name.as_ref()) {
+        if let Some(x) = rx {
+            for val in x {
+                if let Some(str_val) = val.to_str() {
+                    if let Ok(ret) = str_val.parse::<T>() {
+                        return ret;
+                    }
+                }
             }
         }
     }
@@ -159,18 +176,6 @@ where
 pub trait OptionValueWrapper<T> {
     fn pick(self, input: &str) -> Self;
 }
-
-/**
-impl OptionValueWrapper<bool> for bool {
-    fn pick(self, input: &str) -> Self {
-        let s = input.to_lowercase();
-        if s.is_empty() {
-            return false;
-        }
-        s != "0" && s != "false" && s != "disable" && s != "disabled" && s != "no"
-    }
-}
-**/
 
 impl<T> OptionValueWrapper<T> for T
 where
@@ -185,17 +190,60 @@ where
     }
 }
 
-pub fn unwraper_option_or<T, S: AsRef<str>>(matches: &ArgMatches, name: S, def: T) -> T
+pub fn unwraper_option_or<T, S>(matches: &ArgMatches, name: S, def: T) -> T
 where
     T: OptionValueWrapper<T>,
+    S: AsRef<str>,
 {
-    if let Some(mut x) = matches.values_of(name.as_ref()) {
-        if let Some(val) = x.next() {
-            return def.pick(val);
+    if let Ok(rx) = matches.try_get_raw(name.as_ref()) {
+        if let Some(x) = rx {
+            for val in x {
+                if let Some(str_val) = val.to_str() {
+                    return def.pick(str_val);
+                }
+            }
         }
     }
 
     def
+}
+
+pub fn unwraper_multiple_values<T, S, TN>(
+    matches: &ArgMatches,
+    name: S,
+    logger: &slog::Logger,
+    type_name: TN,
+) -> Vec<T>
+where
+    T: FromStr,
+    S: AsRef<str>,
+    TN: AsRef<str>,
+{
+    let mut ret = vec![];
+    if let Ok(rx) = matches.try_get_raw_occurrences(name.as_ref()) {
+        if let Some(x) = rx {
+            for val_set in x {
+                for val_os_str in val_set {
+                    if let Some(val) = val_os_str.to_str() {
+                        if let Ok(res) = val.parse::<T>() {
+                            ret.push(res);
+                        } else {
+                            error!(logger, "Invalid {} value {}", type_name.as_ref(), val);
+                        }
+                    } else {
+                        error!(
+                            logger,
+                            "Can not convert {:?} to string for {}",
+                            val_os_str,
+                            type_name.as_ref()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    ret
 }
 
 /// Custom Drain logic

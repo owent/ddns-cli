@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 
 extern crate clap;
-use clap::{App, Arg, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 
 use super::super::option;
 use super::{Detector, DetectorResult, Record};
@@ -69,12 +69,11 @@ impl GetIpByUrlDetector {
 }
 
 impl Detector for GetIpByUrlDetector {
-    fn initialize<'a>(&mut self, app: App<'a>) -> App<'a> {
+    fn initialize(&mut self, app: Command) -> Command {
         app.arg(
             Arg::new("get-ip-by-url")
                 .long("get-ip-by-url")
                 .value_name("URL TO VISIT")
-                .takes_value(true)
                 .help("Get ip by visit specify url(https://myip.biturl.top/ for example)"),
         )
     }
