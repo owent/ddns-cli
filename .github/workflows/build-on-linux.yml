@@ -61,29 +61,40 @@ jobs:
           override: true
           default: true
           components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Cache cargo modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Cargo Release build
         uses: actions-rs/cargo@v1
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'i686-unknown-linux-gnu' }}
         with:
           use-cross: false
           command: build
           args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Run tests
         uses: actions-rs/cargo@v1
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'i686-unknown-linux-gnu' }}
         with:
           command: test
           args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Install Cross
-        uses: taiki-e/install-action@cross
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
+        shell: bash
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'i686-unknown-linux-gnu' }}
+        run: |
+          cargo install cross
       - name: Cross Release build
-        uses: actions-rs/cargo@v1
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-        with:
-          use-cross: true
-          command: build
-          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
+        # uses: actions-rs/cargo@v1
+        shell: bash
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'i686-unknown-linux-gnu' }}
+        run: cross --target ${{ matrix.target }} --release --jobs 2 --verbose
+        # with:
+        #   use-cross: true
+        #   command: build
+        #   args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Prepare package
         shell: bash
         if: ${{ github.ref_type == 'tag' }}
@@ -99,7 +110,7 @@ jobs:
           fi
           tar -zcvf ${{ matrix.target }}.tar.gz bin ;
           cd "$GITHUB_WORKSPACE" ;
-      - uses: xresloader/upload-to-github-release@master
+      - uses: xresloader/upload-to-github-release@main
         if: ${{ github.ref_type == 'tag' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
