@@ -80,7 +80,7 @@ jobs:
         shell: bash
         if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
         run: |
-          cargo install cross
+          cargo install cross --git https://github.com/cross-rs/cross
           cargo install xargo
       - name: Cargo Release build
         uses: actions-rs/cargo@v1
