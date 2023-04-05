@@ -96,14 +96,14 @@ jobs:
           command: test
           args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Cross Release build
-        # uses: actions-rs/cargo@v1
-        shell: bash
+        uses: actions-rs/cargo@v1
+        # shell: bash
         if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-        run: cross --target ${{ matrix.target }} --release --jobs 2 --verbose
-        # with:
-        #   use-cross: true
-        #   command: build
-        #   args: --target ${{ matrix.target }} --release --jobs 2 --verbose
+        # run: cross --target ${{ matrix.target }} --release --jobs 2 --verbose
+        with:
+          use-cross: true
+          command: build
+          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Prepare package
         shell: bash
         if: ${{ github.ref_type == 'tag' }}
