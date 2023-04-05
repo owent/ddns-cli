@@ -51,14 +51,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          override: true
-          default: true
-          components: "rustfmt, clippy, cargo, rust-docs"
       - name: Cache cargo modules
         uses: actions/cache@v3
         with:
@@ -66,28 +58,47 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install rust toolchain for host
+        uses: actions-rs/toolchain@v1
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'i686-unknown-linux-gnu' }}
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+          default: true
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Install rust toolchain for cross
+        uses: actions-rs/toolchain@v1
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'i686-unknown-linux-gnu' }}
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: x86_64-unknown-linux-gnu
+          override: true
+          default: true
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Install Cross
+        shell: bash
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'i686-unknown-linux-gnu' }}
+        run: |
+          cargo install cross
+          cargo install xargo
       - name: Cargo Release build
         uses: actions-rs/cargo@v1
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'i686-unknown-linux-gnu' }}
         with:
           use-cross: false
           command: build
           args: --target ${{ matrix.target }} --release --jobs 2 --verbose
       - name: Run tests
         uses: actions-rs/cargo@v1
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'i686-unknown-linux-gnu' }}
         with:
           command: test
           args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
-      - name: Install Cross
-        shell: bash
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-        run: |
-          cargo install cross
       - name: Cross Release build
         # uses: actions-rs/cargo@v1
         shell: bash
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' && matrix.target != 'i686-unknown-linux-gnu' }}
         run: cross --target ${{ matrix.target }} --release --jobs 2 --verbose
         # with:
         #   use-cross: true
