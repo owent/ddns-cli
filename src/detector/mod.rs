@@ -17,23 +17,23 @@ pub type HttpMethod = super::option::HttpMethod;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Record {
     A(Ipv4Addr),
-    AAAA(Ipv6Addr),
+    Aaaa(Ipv6Addr),
     #[allow(dead_code)]
-    CNAME(String),
+    Cname(String),
     #[allow(dead_code)]
-    MX(String),
+    Mx(String),
     #[allow(dead_code)]
-    TXT(String),
+    Txt(String),
 }
 
 impl fmt::Display for Record {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Record::A(ref v) => f.write_fmt(format_args!("A: {}", v)),
-            Record::AAAA(ref v) => f.write_fmt(format_args!("AAAA: {}", v)),
-            Record::CNAME(ref v) => f.write_fmt(format_args!("CNAME: {}", v)),
-            Record::MX(ref v) => f.write_fmt(format_args!("MX: {}", v)),
-            Record::TXT(ref v) => f.write_fmt(format_args!("TXT: {}", v)),
+            Record::Aaaa(ref v) => f.write_fmt(format_args!("AAAA: {}", v)),
+            Record::Cname(ref v) => f.write_fmt(format_args!("CNAME: {}", v)),
+            Record::Mx(ref v) => f.write_fmt(format_args!("MX: {}", v)),
+            Record::Txt(ref v) => f.write_fmt(format_args!("TXT: {}", v)),
         }
     }
 }

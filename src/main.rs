@@ -37,15 +37,15 @@ mod option;
 
 fn register_detectors() -> Vec<Box<dyn detector::Detector>> {
     vec![
-        Box::new(detector::SetIpDetector::default()),
-        Box::new(detector::GetIpByUrlDetector::default()),
+        Box::<detector::SetIpDetector>::default(),
+        Box::<detector::GetIpByUrlDetector>::default(),
     ]
 }
 
 fn register_drivers() -> Vec<Box<dyn driver::Driver>> {
     vec![
-        Box::new(driver::Cloudflare::default()),
-        Box::new(driver::Dnspod::default()),
+        Box::<driver::Cloudflare>::default(),
+        Box::<driver::Dnspod>::default(),
     ]
 }
 
@@ -78,14 +78,14 @@ async fn real_main() -> i32 {
     let mut records: Vec<detector::Record> = vec![];
     for ref mut detector in &mut detectors {
         if let Ok(res) = detector.as_mut().run(&mut options).await {
-            records.extend(res.iter().map(|x| x.clone()));
+            records.extend(res.iter().cloned());
         }
     }
 
     records.dedup();
     let mut exit_code: i32 = 0;
     for ref mut driver in &mut drivers {
-        if let Err(_) = driver.run(&options, &records).await {
+        if (driver.run(&options, &records).await).is_err() {
             exit_code = 1;
         }
     }

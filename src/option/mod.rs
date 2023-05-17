@@ -5,10 +5,8 @@ use std::sync::atomic::Ordering;
 use std::sync::{atomic, Arc};
 use std::time::Duration;
 
-extern crate clap;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
-use slog;
 use slog::Drain;
 
 use reqwest::{self, ClientBuilder};
@@ -28,15 +26,15 @@ pub struct ProgramOptions {
 pub type SharedProgramOptions = Arc<ProgramOptions>;
 #[allow(dead_code)]
 pub enum HttpMethod {
-    GET,
-    POST,
-    PUT,
-    PATCH,
-    DELETE,
-    HEAD,
+    Get,
+    Post,
+    Put,
+    Patch,
+    Delete,
+    Head,
 }
 
-pub fn app<'a>() -> Command {
+pub fn app() -> Command {
     let matches = command!();
     matches
         .author(crate_authors!())
@@ -102,22 +100,20 @@ pub fn unwraper_flag<S>(matches: &ArgMatches, name: S) -> bool
 where
     S: AsRef<str>,
 {
-    if let Ok(rx) = matches.try_get_one::<bool>(name.as_ref()) {
-        if let Some(x) = rx {
-            return *x;
-        }
+    if let Ok(Some(x)) = matches.try_get_one::<bool>(name.as_ref()) {
+        return *x;
     }
 
     false
 }
 
 fn generate_options(matches: &ArgMatches) -> ProgramOptions {
-    let debug_log_on = Arc::new(atomic::AtomicBool::new(unwraper_flag(&matches, "verbose")));
+    let debug_log_on = Arc::new(atomic::AtomicBool::new(unwraper_flag(matches, "verbose")));
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = RuntimeLevelFilter {
-        drain: drain,
-        on: debug_log_on.clone(),
+        drain,
+        on: debug_log_on,
     }
     .fuse();
     let drain = slog_async::Async::new(drain)
@@ -128,17 +124,17 @@ fn generate_options(matches: &ArgMatches) -> ProgramOptions {
 
     ProgramOptions {
         timeout: Duration::from_millis(unwraper_from_str_or(matches, "timeout", 60000)),
-        insecure: unwraper_flag(&matches, "insecure"),
+        insecure: unwraper_flag(matches, "insecure"),
         logger: slog::Logger::root(drain, o!()),
         http_user_agent: unwraper_option_or(
-            &matches,
+            matches,
             "http-user-agent",
             format!("{}/{}", crate_name!(), crate_version!()),
         ),
-        no_proxy: unwraper_flag(&matches, "no-proxy"),
-        proxy_address: unwraper_option_or(&matches, "proxy", String::default()),
-        proxy_username: unwraper_option_or(&matches, "proxy-username", String::default()),
-        proxy_password: unwraper_option_or(&matches, "proxy-password", String::default()),
+        no_proxy: unwraper_flag(matches, "no-proxy"),
+        proxy_address: unwraper_option_or(matches, "proxy", String::default()),
+        proxy_username: unwraper_option_or(matches, "proxy-username", String::default()),
+        proxy_password: unwraper_option_or(matches, "proxy-password", String::default()),
     }
 }
 
@@ -158,13 +154,11 @@ where
     T: FromStr,
     S: AsRef<str>,
 {
-    if let Ok(rx) = matches.try_get_raw(name.as_ref()) {
-        if let Some(x) = rx {
-            for val in x {
-                if let Some(str_val) = val.to_str() {
-                    if let Ok(ret) = str_val.parse::<T>() {
-                        return ret;
-                    }
+    if let Ok(Some(x)) = matches.try_get_raw(name.as_ref()) {
+        for val in x {
+            if let Some(str_val) = val.to_str() {
+                if let Ok(ret) = str_val.parse::<T>() {
+                    return ret;
                 }
             }
         }
@@ -195,12 +189,10 @@ where
     T: OptionValueWrapper<T>,
     S: AsRef<str>,
 {
-    if let Ok(rx) = matches.try_get_raw(name.as_ref()) {
-        if let Some(x) = rx {
-            for val in x {
-                if let Some(str_val) = val.to_str() {
-                    return def.pick(str_val);
-                }
+    if let Ok(Some(x)) = matches.try_get_raw(name.as_ref()) {
+        for val in x {
+            if let Some(str_val) = val.to_str() {
+                return def.pick(str_val);
             }
         }
     }
@@ -220,24 +212,22 @@ where
     TN: AsRef<str>,
 {
     let mut ret = vec![];
-    if let Ok(rx) = matches.try_get_raw_occurrences(name.as_ref()) {
-        if let Some(x) = rx {
-            for val_set in x {
-                for val_os_str in val_set {
-                    if let Some(val) = val_os_str.to_str() {
-                        if let Ok(res) = val.parse::<T>() {
-                            ret.push(res);
-                        } else {
-                            error!(logger, "Invalid {} value {}", type_name.as_ref(), val);
-                        }
+    if let Ok(Some(x)) = matches.try_get_raw_occurrences(name.as_ref()) {
+        for val_set in x {
+            for val_os_str in val_set {
+                if let Some(val) = val_os_str.to_str() {
+                    if let Ok(res) = val.parse::<T>() {
+                        ret.push(res);
                     } else {
-                        error!(
-                            logger,
-                            "Can not convert {:?} to string for {}",
-                            val_os_str,
-                            type_name.as_ref()
-                        );
+                        error!(logger, "Invalid {} value {}", type_name.as_ref(), val);
                     }
+                } else {
+                    error!(
+                        logger,
+                        "Can not convert {:?} to string for {}",
+                        val_os_str,
+                        type_name.as_ref()
+                    );
                 }
             }
         }
@@ -313,12 +303,12 @@ impl ProgramOptions {
         }
 
         let builder = match method {
-            HttpMethod::GET => builder.build().expect("Client::new()").get(url),
-            HttpMethod::POST => builder.build().expect("Client::new()").post(url),
-            HttpMethod::PUT => builder.build().expect("Client::new()").put(url),
-            HttpMethod::PATCH => builder.build().expect("Client::new()").patch(url),
-            HttpMethod::DELETE => builder.build().expect("Client::new()").delete(url),
-            HttpMethod::HEAD => builder.build().expect("Client::new()").head(url),
+            HttpMethod::Get => builder.build().expect("Client::new()").get(url),
+            HttpMethod::Post => builder.build().expect("Client::new()").post(url),
+            HttpMethod::Put => builder.build().expect("Client::new()").put(url),
+            HttpMethod::Patch => builder.build().expect("Client::new()").patch(url),
+            HttpMethod::Delete => builder.build().expect("Client::new()").delete(url),
+            HttpMethod::Head => builder.build().expect("Client::new()").head(url),
         };
         builder.header("User-Agent", &self.http_user_agent)
     }

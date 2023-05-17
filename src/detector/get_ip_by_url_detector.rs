@@ -13,6 +13,7 @@ use super::{Detector, DetectorResult, Record};
 type SharedProgramOptions = super::SharedProgramOptions;
 type HttpMethod = super::HttpMethod;
 
+#[derive(Default)]
 pub struct GetIpByUrlDetector {
     url: String,
     ips: Vec<Record>,
@@ -20,13 +21,10 @@ pub struct GetIpByUrlDetector {
 
 impl GetIpByUrlDetector {
     // #[actix_rt::main]
-    pub async fn pull_request_content<'a>(
-        &'a mut self,
-        options: SharedProgramOptions,
-    ) -> DetectorResult<'a> {
+    pub async fn pull_request_content(&mut self, options: SharedProgramOptions) -> DetectorResult {
         let logger = options.create_logger("GetIpByUrlDetector");
 
-        let cli = options.http(HttpMethod::GET, &self.url);
+        let cli = options.http(HttpMethod::Get, &self.url);
 
         debug!(logger, "Sending request to {} to get my address", self.url);
 
@@ -35,7 +33,6 @@ impl GetIpByUrlDetector {
             .map_err(|e| {
                 error!(logger, "Send HTTP request failed {}", e);
                 debug!(logger, "{:?}", e);
-                ()
             })
             .await?;
 
@@ -44,7 +41,6 @@ impl GetIpByUrlDetector {
             .map_err(|e| {
                 error!(logger, "Get HTTP response failed {}", e);
                 debug!(logger, "{:?}", e);
-                ()
             })
             .await?;
 
@@ -54,7 +50,7 @@ impl GetIpByUrlDetector {
             Ok(addr) => {
                 let final_addr = match addr {
                     IpAddr::V4(ipv4) => Record::A(ipv4),
-                    IpAddr::V6(ipv6) => Record::AAAA(ipv6),
+                    IpAddr::V6(ipv6) => Record::Aaaa(ipv6),
                 };
                 self.ips.push(final_addr);
                 Ok(&self.ips)
@@ -79,7 +75,7 @@ impl Detector for GetIpByUrlDetector {
     }
 
     fn parse_options(&mut self, matches: &ArgMatches, _: &mut SharedProgramOptions) {
-        self.url = option::unwraper_option_or(&matches, "get-ip-by-url", String::default());
+        self.url = option::unwraper_option_or(matches, "get-ip-by-url", String::default());
     }
 
     fn run<'a, 'b>(
@@ -93,15 +89,6 @@ impl Detector for GetIpByUrlDetector {
             future::ready(Err(())).boxed()
         } else {
             self.pull_request_content(options.clone()).boxed()
-        }
-    }
-}
-
-impl Default for GetIpByUrlDetector {
-    fn default() -> Self {
-        GetIpByUrlDetector {
-            url: String::default(),
-            ips: vec![],
         }
     }
 }

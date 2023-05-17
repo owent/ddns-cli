@@ -23,7 +23,7 @@ pub trait Driver {
     fn run<'a, 'b, 'c>(
         &'a mut self,
         options: &SharedProgramOptions,
-        recs: &'c Vec<Record>,
+        recs: &'c [Record],
     ) -> BoxFuture<'b, DriverResult>
     where
         'a: 'b,

@@ -13,6 +13,7 @@ use reqwest::header::CONTENT_TYPE;
 type SharedProgramOptions = super::SharedProgramOptions;
 type HttpMethod = super::HttpMethod;
 
+#[derive(Default)]
 pub struct Cloudflare {
     zone_id: String,
     token: String,
@@ -43,13 +44,13 @@ impl Driver for Cloudflare {
     }
 
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
-        self.zone_id = option::unwraper_option_or(&matches, "cf-zone-id", String::default());
-        self.token = option::unwraper_option_or(&matches, "cf-token", String::default());
+        self.zone_id = option::unwraper_option_or(matches, "cf-zone-id", String::default());
+        self.token = option::unwraper_option_or(matches, "cf-token", String::default());
         if !self.zone_id.is_empty() && !self.token.is_empty() {
             self.logger = Some(options.create_logger("Cloudflare"));
 
             self.domains.extend(option::unwraper_multiple_values(
-                &matches,
+                matches,
                 "cf-domain",
                 self.logger.as_ref().unwrap(),
                 "domain",
@@ -60,7 +61,7 @@ impl Driver for Cloudflare {
     fn run<'a, 'b, 'c>(
         &'a mut self,
         options: &SharedProgramOptions,
-        recs: &'c Vec<Record>,
+        recs: &'c [Record],
     ) -> BoxFuture<'b, DriverResult>
     where
         'a: 'b,
@@ -70,18 +71,7 @@ impl Driver for Cloudflare {
             return future::ready(Ok(0)).boxed();
         }
 
-        self.update(options.clone(), &recs).boxed()
-    }
-}
-
-impl Default for Cloudflare {
-    fn default() -> Self {
-        Cloudflare {
-            zone_id: String::default(),
-            token: String::default(),
-            domains: vec![],
-            logger: None,
-        }
+        self.update(options.clone(), recs).boxed()
     }
 }
 
@@ -204,7 +194,7 @@ impl Cloudflare {
     async fn update<'a, 'b>(
         &'a mut self,
         options: SharedProgramOptions,
-        recs: &'b Vec<Record>,
+        recs: &'b [Record],
     ) -> DriverResult
     where
         'b: 'a,
@@ -222,7 +212,7 @@ impl Cloudflare {
                         proxied: false,
                     },
                 },
-                Record::AAAA(r) => CloudflareRecordAction {
+                Record::Aaaa(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "AAAA",
                         name: String::default(),
@@ -231,7 +221,7 @@ impl Cloudflare {
                         proxied: false,
                     },
                 },
-                Record::CNAME(r) => CloudflareRecordAction {
+                Record::Cname(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "CNAME",
                         name: String::default(),
@@ -240,7 +230,7 @@ impl Cloudflare {
                         proxied: false,
                     },
                 },
-                Record::MX(r) => CloudflareRecordAction {
+                Record::Mx(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "MX",
                         name: String::default(),
@@ -249,7 +239,7 @@ impl Cloudflare {
                         proxied: false,
                     },
                 },
-                Record::TXT(r) => CloudflareRecordAction {
+                Record::Txt(r) => CloudflareRecordAction {
                     record: CloudflareRecord {
                         r#type: "TXT",
                         name: String::default(),
@@ -268,7 +258,7 @@ impl Cloudflare {
             );
             // page=1&per_page=50&order=name&name={}
             let cli = options
-                .http(HttpMethod::GET, &url)
+                .http(HttpMethod::Get, &url)
                 .bearer_auth(self.token.clone())
                 .query(&[
                     ("page", "1"),
@@ -336,20 +326,20 @@ impl Cloudflare {
             }
 
             if let Some(ref logger) = self.logger {
-                if result.result.len() > 0 {
+                if !result.result.is_empty() {
                     debug!(logger, "Old records:");
                     for ref log_item in &result.result {
                         debug!(logger, "     -- {:?}", log_item);
                     }
                 }
 
-                if pending_to_delete.len() > 0 {
+                if !pending_to_delete.is_empty() {
                     debug!(logger, "Pending to delete:");
                     for ref log_item in &pending_to_delete {
                         debug!(logger, "     -- {:?}", log_item);
                     }
                 }
-                if pending_to_create.len() > 0 {
+                if !pending_to_create.is_empty() {
                     debug!(logger, "Pending to create:");
                     for ref log_item in &pending_to_create {
                         debug!(logger, "     -- {:?}", log_item);
@@ -359,13 +349,13 @@ impl Cloudflare {
 
             let mut failed_count: i32 = 0;
             // Delete records no more need
-            for ref old_record in pending_to_delete {
+            for old_record in pending_to_delete {
                 let delete_url = format!(
                     "https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}",
                     self.zone_id, &old_record.id
                 );
                 match options
-                    .http(HttpMethod::DELETE, &delete_url)
+                    .http(HttpMethod::Delete, &delete_url)
                     .bearer_auth(self.token.clone())
                     .header(CONTENT_TYPE, CFHEAD_CONTENT_TYPE)
                     .send()
@@ -422,7 +412,7 @@ impl Cloudflare {
                     self.zone_id
                 );
                 match options
-                    .http(HttpMethod::POST, &create_url)
+                    .http(HttpMethod::Post, &create_url)
                     .bearer_auth(self.token.clone())
                     .json(&new_record.record)
                     .send()

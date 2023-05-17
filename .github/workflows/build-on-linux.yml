@@ -11,6 +11,32 @@ on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#web
       - main
 
 jobs:
+  format_and_lint:
+    name: "Format and lint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Cache cargo modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-format_and_lint-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install rust toolchain for host
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+          override: true
+          default: true
+          components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Format and lint
+        shell: bash
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy
   build: # job id, can be any string
     # Job name is Build And Publish
     name: Build

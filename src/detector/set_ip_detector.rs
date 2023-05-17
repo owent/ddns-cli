@@ -11,6 +11,7 @@ use super::{Detector, DetectorResult, Record};
 
 type SharedProgramOptions = super::SharedProgramOptions;
 
+#[derive(Default)]
 pub struct SetIpDetector {
     ips: Vec<Record>,
     ignore_link_local: bool,
@@ -18,19 +19,6 @@ pub struct SetIpDetector {
     ignore_loopback: bool,
     ignore_private: bool,
     ignore_multicast: bool,
-}
-
-impl Default for SetIpDetector {
-    fn default() -> Self {
-        SetIpDetector {
-            ips: vec![],
-            ignore_link_local: false,
-            ignore_shared: false,
-            ignore_loopback: false,
-            ignore_private: false,
-            ignore_multicast: false,
-        }
-    }
 }
 
 impl Detector for SetIpDetector {
@@ -76,50 +64,40 @@ impl Detector for SetIpDetector {
     }
 
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
-        self.ignore_link_local = option::unwraper_flag(&matches, "ip-no-link-local");
-        self.ignore_shared = option::unwraper_flag(&matches, "ip-no-shared");
-        self.ignore_loopback = option::unwraper_flag(&matches, "ip-no-loopback");
-        self.ignore_private = option::unwraper_flag(&matches, "ip-no-private");
-        self.ignore_multicast = option::unwraper_flag(&matches, "ip-no-multicast");
+        self.ignore_link_local = option::unwraper_flag(matches, "ip-no-link-local");
+        self.ignore_shared = option::unwraper_flag(matches, "ip-no-shared");
+        self.ignore_loopback = option::unwraper_flag(matches, "ip-no-loopback");
+        self.ignore_private = option::unwraper_flag(matches, "ip-no-private");
+        self.ignore_multicast = option::unwraper_flag(matches, "ip-no-multicast");
 
         {
             let logger = options.create_logger("SetIpDetector");
-            for addr in option::unwraper_multiple_values(&matches, "ip", &logger, "ip address") {
+            for addr in option::unwraper_multiple_values(matches, "ip", &logger, "ip address") {
                 let final_addr = match addr {
                     IpAddr::V4(ipv4) => {
-                        let res;
-                        if self.ignore_link_local && ipv4.is_link_local() {
-                            res = None
-                        } else if self.ignore_shared
-                            && ipv4.octets()[0] == 100
-                            && (ipv4.octets()[1] & 0b1100_0000 == 0b0100_0000)
+                        if (self.ignore_link_local && ipv4.is_link_local())
+                            || (self.ignore_shared
+                                && ipv4.octets()[0] == 100
+                                && (ipv4.octets()[1] & 0b1100_0000 == 0b0100_0000))
+                            || (self.ignore_loopback && ipv4.is_loopback())
+                            || (self.ignore_private && ipv4.is_private())
+                            || (self.ignore_multicast && ipv4.is_multicast())
                         {
-                            res = None
-                        } else if self.ignore_loopback && ipv4.is_loopback() {
-                            res = None
-                        } else if self.ignore_private && ipv4.is_private() {
-                            res = None
-                        } else if self.ignore_multicast && ipv4.is_multicast() {
-                            res = None
+                            None
                         } else {
-                            res = Some(Record::A(ipv4))
+                            Some(Record::A(ipv4))
                         }
-                        res
                     }
                     IpAddr::V6(ipv6) => {
-                        let res;
-                        if self.ignore_link_local && (ipv6.segments()[0] & 0xffc0) == 0xfe80 {
-                            res = None
-                        } else if self.ignore_loopback && ipv6.is_loopback() {
-                            res = None
-                        } else if self.ignore_private && (ipv6.segments()[0] & 0xfe00) == 0xfc00 {
-                            res = None
-                        } else if self.ignore_multicast && ipv6.is_multicast() {
-                            res = None
+                        if (self.ignore_link_local && (ipv6.segments()[0] & 0xffc0) == 0xfe80)
+                            || (self.ignore_loopback && ipv6.is_loopback())
+                            || (self.ignore_private && (ipv6.segments()[0] & 0xfe00) == 0xfc00)
+                            || (self.ignore_multicast && ipv6.is_multicast())
+                        {
+                            None
                         } else {
-                            res = Some(Record::AAAA(ipv6))
+                            Some(Record::Aaaa(ipv6))
                         }
-                        res
                     }
                 };
 

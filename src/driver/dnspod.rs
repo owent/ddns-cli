@@ -15,6 +15,7 @@ use super::{Driver, DriverResult, Record};
 type SharedProgramOptions = super::SharedProgramOptions;
 type HttpMethod = super::HttpMethod;
 
+#[derive(Default)]
 pub struct Dnspod {
     domain_id: String,
     domain: String,
@@ -57,11 +58,11 @@ impl Driver for Dnspod {
     }
 
     fn parse_options(&mut self, matches: &ArgMatches, options: &mut SharedProgramOptions) {
-        self.domain_id = option::unwraper_option_or(&matches, "dp-domain-id", String::default());
-        self.domain = option::unwraper_option_or(&matches, "dp-domain", String::default());
-        self.token = option::unwraper_option_or(&matches, "dp-token", String::default());
-        self.token_id = option::unwraper_option_or(&matches, "dp-token-id", String::default());
-        self.sub_domain = option::unwraper_option_or(&matches, "dp-name", String::from("@"));
+        self.domain_id = option::unwraper_option_or(matches, "dp-domain-id", String::default());
+        self.domain = option::unwraper_option_or(matches, "dp-domain", String::default());
+        self.token = option::unwraper_option_or(matches, "dp-token", String::default());
+        self.token_id = option::unwraper_option_or(matches, "dp-token-id", String::default());
+        self.sub_domain = option::unwraper_option_or(matches, "dp-name", String::from("@"));
 
         if (!self.token_id.is_empty() || !self.token.is_empty())
             && (!self.domain_id.is_empty() || !self.domain.is_empty())
@@ -73,7 +74,7 @@ impl Driver for Dnspod {
     fn run<'a, 'b, 'c>(
         &'a mut self,
         options: &SharedProgramOptions,
-        recs: &'c Vec<Record>,
+        recs: &'c [Record],
     ) -> BoxFuture<'b, DriverResult>
     where
         'a: 'b,
@@ -83,20 +84,7 @@ impl Driver for Dnspod {
             return future::ready(Ok(0)).boxed();
         }
 
-        self.update(options.clone(), &recs).boxed()
-    }
-}
-
-impl Default for Dnspod {
-    fn default() -> Self {
-        Dnspod {
-            domain_id: String::default(),
-            domain: String::default(),
-            token: String::default(),
-            token_id: String::default(),
-            sub_domain: String::default(),
-            logger: None,
-        }
+        self.update(options.clone(), recs).boxed()
     }
 }
 
@@ -198,7 +186,7 @@ struct DnspodResponseResult {
 }
 
 impl DnspodResponseResult {
-    pub fn get_error_message<'a>(&'a self) -> &'a str {
+    pub fn get_error_message(&self) -> &str {
         &self.status.message
     }
 
@@ -210,7 +198,7 @@ impl DnspodResponseResult {
 
 impl Dnspod {
     fn generate_common_form(&self) -> reqwest::multipart::Form {
-        let api_token_parameter = if 0 == self.token_id.len() {
+        let api_token_parameter = if self.token_id.is_empty() {
             self.token.clone()
         } else {
             format!("{},{}", self.token_id, self.token)
@@ -220,7 +208,7 @@ impl Dnspod {
             .text("login_token", api_token_parameter)
             .text("format", "json");
 
-        if self.domain_id.len() > 0 {
+        if !self.domain_id.is_empty() {
             form.text("domain_id", self.domain_id.clone())
         } else {
             form.text("domain", self.domain.clone())
@@ -230,7 +218,7 @@ impl Dnspod {
     async fn update<'a, 'b>(
         &'a mut self,
         options: SharedProgramOptions,
-        recs: &'b Vec<Record>,
+        recs: &'b [Record],
     ) -> DriverResult
     where
         'b: 'a,
@@ -253,7 +241,7 @@ impl Dnspod {
                             record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
-                    Record::AAAA(r) => DnspodRecordAction {
+                    Record::Aaaa(r) => DnspodRecordAction {
                         record: DnspodRecord {
                             record_type: "AAAA",
                             sub_domain: String::default(),
@@ -265,7 +253,7 @@ impl Dnspod {
                             record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
-                    Record::CNAME(r) => DnspodRecordAction {
+                    Record::Cname(r) => DnspodRecordAction {
                         record: DnspodRecord {
                             record_type: "CNAME",
                             sub_domain: String::default(),
@@ -277,7 +265,7 @@ impl Dnspod {
                             record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
-                    Record::MX(r) => DnspodRecordAction {
+                    Record::Mx(r) => DnspodRecordAction {
                         record: DnspodRecord {
                             record_type: "MX",
                             sub_domain: String::default(),
@@ -289,7 +277,7 @@ impl Dnspod {
                             record_line_id: String::from("0"), // @see https://docs.dnspod.cn/api/5f5623f9e75cf42d25bf6776/
                         },
                     },
-                    Record::TXT(r) => DnspodRecordAction {
+                    Record::Txt(r) => DnspodRecordAction {
                         record: DnspodRecord {
                             record_type: "TXT",
                             sub_domain: String::default(),
@@ -336,21 +324,21 @@ impl Dnspod {
             }
 
             if let Some(ref logger) = self.logger {
-                if old_records.len() > 0 {
+                if !old_records.is_empty() {
                     debug!(logger, "Old records:");
                     for ref log_item in &old_records {
                         debug!(logger, "     -- {:?}", log_item);
                     }
                 }
 
-                if pending_to_delete.len() > 0 {
+                if !pending_to_delete.is_empty() {
                     debug!(logger, "Pending to delete:");
                     for ref log_item in &pending_to_delete {
                         debug!(logger, "     -- {:?}", log_item);
                     }
                 }
 
-                if pending_to_create.len() > 0 {
+                if !pending_to_create.is_empty() {
                     debug!(logger, "Pending to create:");
                     for ref log_item in &pending_to_create {
                         debug!(logger, "     -- {:?}", log_item);
@@ -415,7 +403,7 @@ impl Dnspod {
                 .generate_common_form()
                 .text("sub_domain", self.sub_domain.clone());
             let cli = options
-                .http(HttpMethod::POST, &get_list_url)
+                .http(HttpMethod::Post, &get_list_url)
                 .multipart(form);
 
             let rsp = match cli.send().await {
@@ -457,11 +445,11 @@ impl Dnspod {
                 _ => break,
             };
 
-            if records.len() == 0 {
+            if records.is_empty() {
                 break;
             }
 
-            for ref old_record in &records {
+            for old_record in &records {
                 ret.push(Arc::new((*old_record).clone()));
             }
 
@@ -489,7 +477,7 @@ impl Dnspod {
 
             let error_message;
             match options
-                .http(HttpMethod::POST, &delete_url)
+                .http(HttpMethod::Post, &delete_url)
                 .multipart(form)
                 .send()
                 .await
@@ -543,7 +531,7 @@ impl Dnspod {
 
             let error_message;
             match options
-                .http(HttpMethod::POST, &create_url)
+                .http(HttpMethod::Post, &create_url)
                 .multipart(form)
                 .send()
                 .await
