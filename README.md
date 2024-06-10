@@ -13,6 +13,8 @@
 
 Docker: [```docker.io/owt5008137/ddns-cli```][4]
 
+Install <https://github.com/docker/buildx> to use cross building.
+
 ## Usage
 
 ```bash
