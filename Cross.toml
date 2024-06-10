@@ -1,7 +1,40 @@
+[build]
+dockerfile = "docker/linux-cross/Dockerfile"
+
+pre-build = [
+    "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable",
+    ". $HOME/.cargo/env",
+    "cargo install --force --locked bindgen-cli && mv $HOME/.cargo/bin/bindgen /usr/bin",
+    "rm -rf $HOME/.cargo",
+]
+[target.x86_64-pc-windows-gnu]
+pre-build = [
+    "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable",
+    ". $HOME/.cargo/env",
+    "cargo install --force --locked bindgen-cli && mv $HOME/.cargo/bin/bindgen /usr/bin",
+    "rm -rf $HOME/.cargo",
+    "apt-get update && apt-get install --assume-yes nasm wget",
+    "mkdir -pm755 /etc/apt/keyrings",
+    "wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources",
+    "apt install --assume-yes --install-recommends winehq-stable",
+]
+
 [build.env]
 passthrough = [
     "RUST_BACKTRACE",
     "RUST_LOG",
     "TRAVIS",
     "PKG_CONFIG_ALL_STATIC",
+    "AWS_LC_SYS_NO_PREFIX",
+    "AWS_LC_FIPS_SYS_NO_PREFIX",
+    "AWS_LC_SYS_INTERNAL_BINDGEN",
+    "AWS_LC_FIPS_SYS_INTERNAL_BINDGEN",
+    "AWS_LC_SYS_EXTERNAL_BINDGEN",
+    "AWS_LC_FIPS_SYS_EXTERNAL_BINDGEN",
+    "AWS_LC_SYS_STATIC",
+    "AWS_LC_FIPS_SYS_STATIC",
+    "AWS_LC_SYS_CMAKE_BUILDER",
+    "AWS_LC_SYS_CC_SRC_COLLECTOR",
+    "GOPROXY",
+    "CROSS_CMAKE_SYSTEM_PROCESSOR",
 ]
