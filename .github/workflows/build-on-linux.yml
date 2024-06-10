@@ -88,10 +88,10 @@ jobs:
       - name: Set Rust toolchain override
         run: rustup override set ${{ steps.toolchain.outputs.name }}
       - name: Cross-compilation (test release)
-        run: cargo cross build -p ddns-cli --release --target ${{ matrix.target }}
+        run: cross build -p ddns-cli --release --target ${{ matrix.target }}
       - name: Cross-compilation (test release)
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        run: cargo cross test --release --verbose --target ${{ matrix.target }} --bin ddns-cli
+        run: cross test --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: bash
         if: ${{ github.ref_type == 'tag' }}
