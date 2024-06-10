@@ -9,12 +9,15 @@ jobs:
     # This job runs on Linux
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [ubuntu-latest]
         rust: [stable]
         target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
     # x86_64-pc-windows-gnu, i686-pc-windows-gnu,
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install --assume-yes nasm clang ninja-build llvm
       - name: Checkout
         uses: actions/checkout@v4
       - name: Cache cargo modules
@@ -25,29 +28,18 @@ jobs:
             ~/.cargo/git
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
-          default: true
-          override: true
           components: "rustfmt, clippy, cargo, rust-docs"
-      - name: Install nasm and bindgen-cli
+      - name: Install cargo-xwin and bindgen-cli
         run: |
-          cargo install bindgen-cli
-          choco install -y nasm
-      - name: Cargo Release build
-        uses: actions-rs/cargo@v1
-        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
-        with:
-          use-cross: false
-          command: build
-          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
+          cargo install cargo-xwin bindgen-cli
+      - name: cargo xwin build for `${{ matrix.target }}`
+        run: cargo xwin build --release --target ${{ matrix.target }}
+      - name: cargo xwin build for `${{ matrix.target }}`
+        run: cargo xwin test --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: pwsh
         if: ${{ contains(github.ref, 'refs/tags/') }}
