@@ -55,7 +55,6 @@ jobs:
             arm-unknown-linux-gnueabihf,
             arm-linux-androideabi,
             armv7-linux-androideabi,
-            armv7-unknown-linux-gnueabihf,
             i686-unknown-linux-gnu,
           ]
     runs-on: ${{ matrix.os }}
@@ -85,8 +84,9 @@ jobs:
           toolchain: ${{ (matrix.target == 'riscv64gc-unknown-linux-gnu'  && '1.72.1') || 'stable' }}
           target: ${{ matrix.target }}
       - name: Set Rust toolchain override
-        run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cross-compilation (test release)
+        run: |
+          rustup override set ${{ steps.toolchain.outputs.name }}
+      - name: Cross-compilation (build release)
         run: cross build -p ddns-cli --release --target ${{ matrix.target }}
       - name: Cross-compilation (test release)
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
