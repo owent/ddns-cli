@@ -73,15 +73,13 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          components: "rustfmt, clippy, cargo, rust-docs"
       - name: Install Cross
         shell: bash
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
-          cargo install xargo
           cargo install --force --locked bindgen-cli
-      - uses: dtolnay/rust-toolchain@master
+      - name: Install rust toolchain for target
+        uses: dtolnay/rust-toolchain@master
         id: toolchain
         with:
           toolchain: ${{ (matrix.target == 'riscv64gc-unknown-linux-gnu'  && '1.72.1') || 'stable' }}
