@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Cache cargo modules
         uses: actions/cache@v3
         with:
@@ -45,38 +45,23 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         rust: [stable]
-        target: [
-            x86_64-unknown-linux-gnu,
-            x86_64-unknown-linux-musl,
+        target:
+          [
+            aarch64-linux-android,
             aarch64-unknown-linux-gnu,
             aarch64-unknown-linux-musl,
-            arm-unknown-linux-gnueabi,
-            armv7-unknown-linux-gnueabihf,
-            armv7-unknown-linux-musleabihf,
-            arm-unknown-linux-musleabihf,
-            arm-unknown-linux-musleabi,
-            #mips-unknown-linux-gnu,
-            #mipsel-unknown-linux-gnu,
-            #mips64-unknown-linux-gnuabi64,
-            #mips64el-unknown-linux-gnuabi64,
-            #mips-unknown-linux-musl,
-            #mipsel-unknown-linux-musl,
-            #powerpc-unknown-linux-gnu,
-            #powerpc64-unknown-linux-gnu,
-            #powerpc64le-unknown-linux-gnu,
-            i686-unknown-linux-gnu,
-            i686-unknown-linux-musl,
-            aarch64-linux-android,
+            x86_64-unknown-linux-gnu,
+            x86_64-unknown-linux-musl,
+            arm-unknown-linux-gnueabihf,
+            arm-linux-androideabi,
             armv7-linux-androideabi,
-            x86_64-linux-android,
-            #x86_64-unknown-netbsd,
-            #x86_64-unknown-freebsd,
-            #x86_64-sun-solaris,
+            armv7-unknown-linux-gnueabihf,
+            i686-unknown-linux-gnu,
           ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Cache cargo modules
         uses: actions/cache@v3
         with:
@@ -108,6 +93,13 @@ jobs:
         run: |
           cargo install cross --git https://github.com/cross-rs/cross
           cargo install xargo
+      - uses: dtolnay/rust-toolchain@master
+        id: toolchain
+        with:
+          toolchain: ${{ (matrix.target == 'riscv64gc-unknown-linux-gnu'  && '1.72.1') || 'stable' }}
+          target: ${{ matrix.target }}
+      - name: Set Rust toolchain override
+        run: rustup override set ${{ steps.toolchain.outputs.name }}
       - name: Cargo Release build
         uses: actions-rs/cargo@v1
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}

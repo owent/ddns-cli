@@ -28,7 +28,6 @@ time = ">=0.3.5"
 uuid = "^1.3"
 
 [dependencies.rustls]
-features = ["std", "logging", "tls12", "ring"]
 version = "^0.23.9"
 
 [dependencies.clap]

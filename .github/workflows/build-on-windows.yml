@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Cache cargo modules
         uses: actions/cache@v3
         with:
@@ -32,6 +32,10 @@ jobs:
           default: true
           override: true
           components: "rustfmt, clippy, cargo, rust-docs"
+      - name: Install nasm and bindgen-cli
+        run: |
+          cargo install bindgen-cli
+          choco install -y nasm
       - name: Cargo Release build
         uses: actions-rs/cargo@v1
         if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
