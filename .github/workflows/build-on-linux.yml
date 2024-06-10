@@ -168,6 +168,13 @@ jobs:
           docker tag docker.io/owt5008137/ddns-cli:latest docker.io/owt5008137/ddns-cli:$TAG_NAME ;
           docker push docker.io/owt5008137/ddns-cli:latest ;
           docker push docker.io/owt5008137/ddns-cli:$TAG_NAME ;
+          # Github package
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker tag docker.io/owt5008137/ddns-cli:latest ghcr.io/${{ github.repository_owner }}/ddns-cli:latest
+          docker tag docker.io/owt5008137/ddns-cli:$TAG_NAME ghcr.io/${{ github.repository_owner }}/ddns-cli:$TAG_NAME
+          docker push ghcr.io/${{ github.repository_owner }}/ddns-cli:latest
+          docker push ghcr.io/${{ github.repository_owner }}/ddns-cli:$TAG_NAME
+          # Cargo
           cd "$GITHUB_WORKSPACE" ;
           echo "${{ secrets.CARGO_TOKEN }}" | cargo login ;
           cargo publish --allow-dirty ;

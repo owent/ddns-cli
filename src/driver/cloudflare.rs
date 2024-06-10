@@ -1,4 +1,3 @@
-pub use core::future::Future;
 use futures::future::{self, BoxFuture, FutureExt};
 
 use serde::{Deserialize, Serialize};
@@ -314,7 +313,7 @@ impl Cloudflare {
                 }
             }
 
-            for mut new_record in &mut actions {
+            for new_record in &mut actions {
                 let already_exists = result.result.iter().any(|res| {
                     res.r#type == new_record.record.r#type
                         && res.content == new_record.record.content

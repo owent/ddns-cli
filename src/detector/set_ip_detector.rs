@@ -1,4 +1,3 @@
-pub use core::future::Future;
 use futures::future::{self, BoxFuture, FutureExt};
 
 use std::net::IpAddr;

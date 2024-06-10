@@ -1,7 +1,6 @@
 use std::clone::Clone;
 use std::sync::Arc;
 
-pub use core::future::Future;
 use futures::future::{self, BoxFuture, FutureExt};
 
 use serde::{Deserialize, Serialize};
