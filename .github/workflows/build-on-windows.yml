@@ -11,7 +11,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         rust: [stable]
-        target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
+        target: [x86_64-pc-windows-msvc]
     # x86_64-pc-windows-gnu, i686-pc-windows-gnu,
     runs-on: ${{ matrix.os }}
     steps:
@@ -35,7 +35,7 @@ jobs:
           components: "rustfmt, clippy, cargo, rust-docs"
       - name: Install cargo-xwin and bindgen-cli
         run: |
-          cargo install cargo-xwin bindgen-cli
+          cargo install cargo-xwin bindgen-cli xargo
       - name: cargo xwin build for `${{ matrix.target }}`
         run: cargo xwin build --release --target ${{ matrix.target }}
       - name: cargo xwin build for `${{ matrix.target }}`

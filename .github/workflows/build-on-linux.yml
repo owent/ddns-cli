@@ -71,17 +71,9 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install rust toolchain for host
         uses: dtolnay/rust-toolchain@master
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
         with:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
-          components: "rustfmt, clippy, cargo, rust-docs"
-      - name: Install rust toolchain for cross
-        uses: dtolnay/rust-toolchain@master
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-        with:
-          toolchain: ${{ matrix.rust }}
-          target: x86_64-unknown-linux-gnu
           components: "rustfmt, clippy, cargo, rust-docs"
       - name: Install Cross
         shell: bash
@@ -96,28 +88,11 @@ jobs:
           target: ${{ matrix.target }}
       - name: Set Rust toolchain override
         run: rustup override set ${{ steps.toolchain.outputs.name }}
-      - name: Cargo Release build
-        uses: actions-rs/cargo@v1
+      - name: Cross-compilation (test release)
+        run: cross build -p ddns-cli --release --target ${{ matrix.target }}
+      - name: Cross-compilation (test release)
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        with:
-          use-cross: false
-          command: build
-          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        with:
-          command: test
-          args: --release --verbose --target ${{ matrix.target }} --bin ddns-cli
-      - name: Cross Release build
-        uses: actions-rs/cargo@v1
-        # shell: bash
-        if: ${{ matrix.target != 'x86_64-unknown-linux-gnu' }}
-        # run: cross --target ${{ matrix.target }} --release --jobs 2 --verbose
-        with:
-          use-cross: true
-          command: build
-          args: --target ${{ matrix.target }} --release --jobs 2 --verbose
+        run: cross test --release --verbose --target ${{ matrix.target }} --bin ddns-cli
       - name: Prepare package
         shell: bash
         if: ${{ github.ref_type == 'tag' }}
