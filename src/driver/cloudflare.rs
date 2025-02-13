@@ -103,7 +103,7 @@ struct CloudflareGetResponseRecord {
     pub content: String,
 
     #[serde(default)]
-    pub comment: String,
+    pub comment: Option<String>,
 
     pub modified_on: String,
 
@@ -500,5 +500,71 @@ impl Cloudflare {
         } else {
             Err(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_get_response() {
+        const GET_RESPONSE: &str = r#"
+        {
+            "result": [
+                {
+                "id": "0fd05f4dabc239c60d17962db58b5b85",
+                "name": "media.x-ha.com",
+                "type": "A",
+                "content": "1.2.3.4",
+                "proxiable": true,
+                "proxied": false,
+                "ttl": 1,
+                "settings": {},
+                "meta": {},
+                "comment": null,
+                "tags": [],
+                "created_on": "2024-07-17T19:13:32.312891Z",
+                "modified_on": "2024-07-17T19:13:32.312891Z"
+                },
+                {
+                "id": "ff6b3feed6d5bcbe844f6937e6b47b61",
+                "name": "media.x-ha.com",
+                "type": "AAAA",
+                "content": "2400:1111:0:210:b914:1caf:89ba:d3b1",
+                "proxiable": true,
+                "proxied": false,
+                "ttl": 1,
+                "settings": {},
+                "meta": {},
+                "comment": null,
+                "tags": [],
+                "created_on": "2024-07-17T19:13:32.762339Z",
+                "modified_on": "2024-07-17T19:13:32.762339Z"
+                }
+            ],
+            "success": true,
+            "errors": [],
+            "messages": [],
+            "result_info": {
+                "page": 1,
+                "per_page": 100,
+                "count": 2,
+                "total_count": 2,
+                "total_pages": 1
+            }
+            }
+            "#;
+
+        let result = serde_json::from_str::<CloudflareGetResponseResult>(&GET_RESPONSE).unwrap();
+        assert_eq!(result.result.len(), 2);
+        assert_eq!(result.result.len(), 2);
+        assert_eq!(result.result[0].name, "media.x-ha.com");
+        assert_eq!(result.result[1].name, "media.x-ha.com");
+        assert_eq!(result.result[0].content, "1.2.3.4");
+        assert_eq!(
+            result.result[1].content,
+            "2400:1111:0:210:b914:1caf:89ba:d3b1"
+        );
     }
 }

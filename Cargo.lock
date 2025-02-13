@@ -551,7 +551,7 @@ checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
 
 [[package]]
 name = "ddns-cli"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-std",
  "bytes",
