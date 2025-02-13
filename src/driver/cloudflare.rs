@@ -92,15 +92,27 @@ struct CloudflareRecordAction {
 #[derive(Debug, Serialize, Deserialize)]
 struct CloudflareGetResponseRecord {
     pub id: String,
+
+    #[serde(default)]
     pub r#type: String,
+
+    #[serde(default)]
     pub name: String,
+
+    #[serde(default)]
     pub content: String,
-    pub zone_id: String,
-    pub zone_name: String,
+
+    #[serde(default)]
+    pub comment: String,
+
     pub modified_on: String,
+
     pub created_on: String,
+
     pub proxiable: bool,
-    pub proxied: bool,
+
+    #[serde(default)]
+    pub proxied: Option<bool>,
 }
 
 impl PartialEq for CloudflareRecord {
